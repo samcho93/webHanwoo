@@ -45,6 +45,20 @@ python scripts/identity_sheet.py outputs/cow03    # ID 일관성 확인용 콘�
 ```
 `models/hanwoo_reid.pt` 가 있으면 자동으로 사용합니다 (`--no-reid` 로 끔).
 
+## 실시간 추적 프로그램 (파일 / RTSP 카메라)
+`live.bat` (또는 `run.bat` 메뉴 7) → 창에서 입력을 고르고 [시작].
+- **입력**: 영상 파일, `rtsp://사용자:비밀번호@IP:554/경로`, 웹캠 번호
+- **마릿수 카운트**: 처음 `등록 시간`(기본 60초) 동안 동시 검출 수 + ReID 외형 군집으로 N 을 정하고 소마다 외형을 등록
+  (마릿수를 알면 `마릿수 N` 에 직접 입력하는 것이 가장 정확)
+- **실시간 ID**: N 개 개체 슬롯 안에서만 ID 배정 (외형 + 이동거리, 헝가리안), 겹친 뒤 뒤바뀜 교정, 확실한 새 소가 계속 보이면 N 자동 증가
+- **파라미터 탭**: 검출·ID 배정·활동량은 즉시 반영, 추적기 설정은 추적기만 재시작(ID 유지), 카운트 설정은 [마릿수 다시 세기]
+- **저장**: `outputs/live/<이름>_<시각>/` 에 `tracks_live.csv`, `summary_live.csv`, `events.log`, 선택 시 결과 영상
+```bash
+python live_app.py                                              # GUI
+python live_app.py --headless --source rtsp://... --save-video  # 화면 없이 (서버용)
+python scripts/identity_sheet.py outputs/live/cow03_...          # 실시간 결과 ID 확인
+```
+
 ## 강좌 사이트
 ```bash
 python scripts/make_figures.py

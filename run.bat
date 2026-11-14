@@ -16,11 +16,13 @@ rem   run.bat all   [폴더/파일] [마릿수]
 rem   run.bat reuse [폴더/파일] [마릿수]
 rem   run.bat serve
 rem   run.bat build
+rem   run.bat live  [파일 또는 rtsp://주소]
 set "MODE=%~1"
 if /i "%MODE%"=="all" goto arg_run
 if /i "%MODE%"=="reuse" goto arg_run
 if /i "%MODE%"=="serve" goto serve_only
 if /i "%MODE%"=="build" goto arg_build
+if /i "%MODE%"=="live" goto arg_live
 
 set EMPTY=0
 :menu
@@ -34,6 +36,7 @@ echo    3. 빠른 재계산 (--reuse)   검출/추적 캐시 재사용
 echo    4. 결과 요약 / 강좌 사이트 열기  (http://localhost:%PORT%)
 echo    5. ID 콘택트 시트 만들기   (ID 유지 확인용)
 echo    6. 강좌 사이트 다시 빌드
+echo    7. 실시간 추적 프로그램  (파일 / RTSP 카메라, 파라미터 튜닝)
 echo    0. 종료
 echo ==============================================================
 set "SEL="
@@ -50,6 +53,7 @@ if "%SEL%"=="3" goto reuse
 if "%SEL%"=="4" goto serve
 if "%SEL%"=="5" goto sheet
 if "%SEL%"=="6" goto build
+if "%SEL%"=="7" goto live
 if "%SEL%"=="0" exit /b 0
 goto menu
 
@@ -101,6 +105,11 @@ goto done
 "%PY%" scripts\build_site.py
 goto done
 
+:live
+echo 실시간 추적 프로그램을 실행합니다. (창을 닫으면 메뉴로 돌아옴)
+"%PY%" live_app.py
+goto menu
+
 :done
 echo.
 echo 완료. 결과 폴더: %~dp0outputs
@@ -118,6 +127,10 @@ exit /b %errorlevel%
 
 :arg_build
 "%PY%" scripts\build_site.py
+exit /b %errorlevel%
+
+:arg_live
+if "%~2"=="" ("%PY%" live_app.py) else ("%PY%" live_app.py --source "%~2")
 exit /b %errorlevel%
 
 :serve_only

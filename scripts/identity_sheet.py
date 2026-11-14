@@ -2,6 +2,7 @@
 
 한 행이 처음부터 끝까지 같은 소로 보이면 ID 가 유지된 것이다.
 사용:  python scripts/identity_sheet.py outputs/cow03 --cols 12
+      python scripts/identity_sheet.py outputs/live/cow03_20261114_xxxxxx   (실시간 결과)
 """
 import argparse
 import sys
@@ -25,9 +26,14 @@ def main():
     ap.add_argument("--dst", default=None)
     a = ap.parse_args()
     od = Path(a.out_dir)
-    video = a.video or f"E:/Video/cow/{od.name}.mp4"
-    act = pd.read_csv(od / "tracks_activity.csv")
-    act = act[act.interp == 0]
+    if (od / "tracks_live.csv").exists():          # 실시간 프로그램(live_app.py) 결과
+        import json
+        act = pd.read_csv(od / "tracks_live.csv").rename(columns={"id": "tid"})
+        video = a.video or json.loads((od / "config.json").read_text(encoding="utf-8"))["source"]
+    else:
+        video = a.video or f"E:/Video/cow/{od.name}.mp4"
+        act = pd.read_csv(od / "tracks_activity.csv")
+        act = act[act.interp == 0]
     fps = 24.0
     nmax = act.frame.max()
     edges = np.linspace(0, nmax, a.cols + 1)

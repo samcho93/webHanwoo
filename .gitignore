@@ -16,3 +16,5 @@ outputs/*/tracks_activity.csv
 
 # 로컬 설정
 .claude/
+outputs/live/
+configs/live_my.json
