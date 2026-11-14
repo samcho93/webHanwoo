@@ -32,6 +32,7 @@ LESSONS = [
     ("10_results", "전체 영상 실행과 결과 분석"),
     ("11_apply", "새 영상 적용과 확장"),
     ("12_live", "실시간 추적 프로그램 (RTSP 카메라)"),
+    ("13_paper", "논문: 고정 개체군 제약과 자기지도 ReID"),
 ]
 
 LAYOUT = """<!doctype html><html lang="ko"><head><meta charset="utf-8">

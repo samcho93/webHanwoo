@@ -16,6 +16,7 @@ from .detect_track import run_detect_track
 from .identity import assign_identities, attach_embeddings, estimate_herd_size, split_swaps
 from .render import render_video
 from .stitching import clean_short, fit_perspective, relabel_and_interpolate, stitch_tracklets
+from .zones import ZoneFilter, load_zones, size_ok, zones_path_for
 
 
 def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path = OUTPUT_DIR,
@@ -48,6 +49,20 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     raw_ids = raw.tid.nunique()
 
     raw = raw.assign(rtid=raw.tid)                 # 추적기 원본 id (ReID 임베딩 연결용)
+    # 검출 영역(ROI): 축사 밖·흐린 배경의 오검출 박스 제거 (configs/zones/<영상>.json)
+    zpath = Path(cfg.zones_file) if cfg.zones_file else zones_path_for(video_path)
+    zf = ZoneFilter(load_zones(zpath), meta["width"], meta["height"])
+    n_zone = 0
+    if zf.active:
+        keep = zf.keep_df(raw)
+        n_zone = int((~keep).sum())
+        raw = raw[keep].reset_index(drop=True)
+        print(f"  zones {zpath.name}: removed {n_zone} boxes ({n_zone / max(len(keep), 1):.1%})")
+    if cfg.min_size_ratio > 0:
+        p0 = fit_perspective(raw)
+        keep = np.array([size_ok(b, p0, cfg.min_size_ratio) for b in raw[["x1", "y1", "x2", "y2"]].to_numpy()], bool)
+        n_zone += int((~keep).sum())
+        raw = raw[keep].reset_index(drop=True)
     clean = clean_short(raw, cfg)
     persp = fit_perspective(clean)
     use_id = cfg.use_identity and Path(cfg.reid_weights).exists()
@@ -100,6 +115,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
         render_time_s=round(t_render, 1), perspective=dict(a=persp[0], b=persp[1]), n_links=len(links),
         method="reid+herd" if use_id else "stitch2", herd_size=id_stats["herd_size"] if id_stats else None,
         unassigned_det_ratio=id_stats["unassigned_det_ratio"] if id_stats else None, n_splits=len(splits),
+        zone_removed=n_zone, zones=zpath.name if zf.active else None,
     )
     (out_dir / "result.json").write_text(json.dumps(dict(result=result, info=info), ensure_ascii=False, indent=2),
                                          encoding="utf-8")

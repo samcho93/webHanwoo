@@ -7,9 +7,9 @@
 <link rel="stylesheet" href="assets/style.css"></head><body>
 <button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
 <nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
-<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class='on'><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class=''><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li></ol>
+<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class='on'><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class=''><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li><li class=''><a href='13_paper.html'><span>14</span>논문: 고정 개체군 제약과 자기지도 ReID</a></li></ol>
 <div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
-<main class="content"><div class="crumb">Lesson 08 / 13</div><h1>ReID 학습과 고정 개체군 ID 유지</h1>
+<main class="content"><div class="crumb">Lesson 08 / 14</div><h1>ReID 학습과 고정 개체군 ID 유지</h1>
 <p class="lead">레슨 07의 정합은 “잠깐 끊긴” 소를 잇는 데는 강하지만, 22분짜리 cow03 처럼 소들이 모였다 흩어지기를 반복하면 ID 가 29개(실제 약 15마리)로 남았습니다. 이 레슨에서는 두 가지를 더합니다. ① 소 한 마리 한 마리를 외형으로 구별하는 <b>ReID(재식별) 모델</b>을 사람 라벨 없이 학습하고, ② <b>“축사의 마릿수는 고정”</b>이라는 조건을 이용해 모든 tracklet 을 정확히 N 개의 개체에 배정합니다.</p>
 
 <pre><code class="language-plaintext">YOLO 검출 → BoT-SORT 추적 → 1차 정합(짧은 끊김, 레슨 07)
@@ -507,7 +507,11 @@ def assign_identities(df: pd.DataFrame, embs: dict, fps: float, persp, n_herd: i
     stats = dict(herd_size=int(n_herd), slots=len(slots), tracklets=len(T), unassigned_tracklets=len(T) - len(where),
                  unassigned_det_ratio=round(n_un / max(len(df), 1), 4), icm_moves=moves_log)
     return out.reset_index(drop=True), stats, {int(t): int(k) for t, k in where.items()}</code></pre>
-<div class="file">📄 hanwoo/config.py (L41–54)</div><pre><code class="language-python">    # ---- 고정 개체군 ID 배정 (ReID + 마릿수 제약) ----
+<div class="file">📄 hanwoo/config.py (L41–54)</div><pre><code class="language-python">    # ---- 검출 영역 (축사 밖·흐린 배경 오검출 제거, hanwoo/zones.py) ----
+    zones_file: str = &quot;&quot;                # 비우면 configs/zones/&lt;영상이름&gt;.json → default.json 자동
+    min_size_ratio: float = 0.0         # 박스 높이 / 기대 체고 하한 (0=끔)
+
+    # ---- 고정 개체군 ID 배정 (ReID + 마릿수 제약) ----
     reid_weights: str = str(MODELS_DIR / &quot;hanwoo_reid.pt&quot;)  # 없으면 기존 2단계 정합만 사용
     use_identity: bool = True
     herd_size: int = 0                  # 축사 마릿수 N (0 = 동시 검출 수로 자동 추정)
@@ -516,11 +520,7 @@ def assign_identities(df: pd.DataFrame, embs: dict, fps: float, persp, n_herd: i
     split_sim_thr: float = 0.55         # 전후 평균 임베딩 코사인 유사도가 이보다 낮으면 분리
     id_radius_bl: float = 2.0           # 움직임 게이트: 기본 반경(몸길이)
     id_speed_bl_s: float = 0.5          # 움직임 게이트: 공백 1초당 추가 이동 가능 거리(몸길이)
-    id_gate: float = 1.5                # 허용거리 × gate 초과 시 배정 불가
-    id_app_weight: float = 0.7          # 비용 중 외형 비중
-    id_new_cost: float = 0.45           # 슬롯 수 &lt; N 일 때, 이 비용보다 나쁘면 새 개체로 시작
-    id_overlap_tol_s: float = 0.5       # tracklet 경계 겹침 허용(초)
-    id_refine_iters: int = 5</code></pre>
+    id_gate: float = 1.5                # 허용거리 × gate 초과 시 배정 불가</code></pre>
 
 <h2>5. cow03 결과: 29 → 15 ID</h2>
 <p><b>ID 콘택트 시트</b>: 한 행이 한 ID, 열은 영상 전체를 12구간으로 나눈 시각입니다. 한 행이 처음부터 끝까지 같은 소로 보이면 ID 가 유지된 것이고, 빈칸은 그 ID 가 보이지 않던 구간입니다.</p>

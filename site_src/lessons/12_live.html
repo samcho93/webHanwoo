@@ -55,16 +55,40 @@ python live_app.py --headless --source rtsp://... --save-video   # 화면 없는
 <li><b>결과</b>: <code>outputs/live/&lt;이름&gt;_&lt;시각&gt;/</code> 에 <code>tracks_live.csv</code>(프레임별), <code>summary_live.csv</code>(개체별 요약), <code>events.log</code>, <code>config.json</code>(사용한 파라미터)</li>
 </ul>
 
-<h2>6. 결과와 한계</h2>
+<h2>6. 흐린 배경의 오검출 박스 처리</h2>
+<p>첫 실행 결과의 콘택트 시트에서 ID 9·13·15 행에 회색으로 흐린 crop 이 섞여 있었습니다. 원인을 찾아보니 왼쪽 뒤 울타리 너머의 <b>고정된 물체(구유로 보임)</b>를 소로 잘못 본 높이 21px 짜리 박스가 영상 22분 중 약 10분 동안 <b>정확히 같은 좌표</b>에 검출되고 있었습니다. 이 박스가 “사라진 소” 의 ID 를 번갈아 빼앗아 ID 가 섞인 것입니다. 바로 옆의 다른 작은 박스들은 왼쪽 뒤 칸의 진짜 소(머리만 보이는 경우 포함)였기 때문에, 그 영역 전체를 지우면 안 됩니다.</p>
+<figure><img src="assets/img/static_ghost.jpg"><figcaption>빨간 박스: 22분 내내 같은 자리에 검출된 배경 물체 (프레임 100 · 9330 · 14231 · 31000)</figcaption></figure>
+<p>그래서 두 가지 장치를 넣었습니다 (<code>hanwoo/zones.py</code>).</p>
+<ul>
+<li><b>검출 영역(ROI)</b>: 화면 비율 좌표의 다각형. <b>제외 영역</b> 안에 박스의 발 위치(하단 중앙)가 있으면 버리고, <b>포함 영역</b>을 그리면 그 안의 박스만 씁니다. 영상별로 <code>configs/zones/&lt;영상이름&gt;.json</code>(카메라는 <code>camera_&lt;IP&gt;.json</code>)에 저장되고, 실시간 프로그램과 오프라인 파이프라인(<code>run_activity.py</code>)이 모두 자동으로 읽습니다. 프로그램의 [영역 편집…] 에서 영상 위를 클릭해 그립니다.</li>
+<li><b>고정 오검출 자동 탐지</b>: 박스 좌표를 6px 격자로 묶어 같은 자리에 머문 시간을 누적하고, <code>120초 이상</code> 고정되었으면서 <code>크기비(박스 높이 / 그 위치의 기대 체고) &lt; 0.5</code> 인 위치를 후보로 냅니다. 소는 오래 누워 있어도 결국 자세를 바꾸고, 누운 소는 크기비가 대개 0.5 이상이라 “작다” 는 조건으로 보호합니다. 후보는 이벤트로 알리고 [고정 오검출 제외] 를 누르면 발 위치 주변의 작은 사각형이 제외 영역에 추가됩니다 (<code>static_auto</code> 를 켜면 자동 추가).</li>
+<li><b>크기 필터</b> (<code>min_size_ratio</code>, 기본 끔): 먼 배경의 작은 박스를 크기만으로 거릅니다. cow03 에서 0.5 로 하면 배경 박스는 93% 걸러지지만 가려진 진짜 소 박스도 2.9% 사라져 보조 수단으로만 씁니다.</li>
+</ul>
+<figure><img src="assets/img/zone_dialog.png"><figcaption>검출 영역 편집 창: 빨강 = 제외 영역, 노란 박스 = 현재 검출과 발 위치</figcaption></figure>
+<pre><code class="language-bash">python scripts/find_static_boxes.py outputs/cow03            # 오프라인 결과에서 후보 찾기
+python scripts/find_static_boxes.py outputs/cow03 --apply    # configs/zones/cow03.json 에 추가
+python run_activity.py E:/Video/cow/cow03.mp4 --reuse        # 영역 적용해 다시 계산</code></pre>
+<p><b>적용 결과 (cow03)</b></p>
+<div class="tbl"><table>
+<tr><th>항목</th><th>처리 전</th><th>제외 영역 적용</th></tr>
+<tr><td>오프라인: 제거된 박스</td><td>-</td><td>15,400개 (전체의 4.1%)</td></tr>
+<tr><td>오프라인: 추정 마릿수 / 최종 ID</td><td>15 / 15</td><td>14 / 14 (배경 물체가 한 마리로 세어지던 것이 빠짐)</td></tr>
+<tr><td>실시간: 등록 60초 후 N → 최종 N</td><td>13 → 15</td><td>12 → 15</td></tr>
+<tr><td>실시간: 외형 교정 / 뒤바뀜 교정 / 재등장 배정</td><td>48 / 6 / 114</td><td>31 / 8 / 94</td></tr>
+<tr><td>실시간: 처리 속도</td><td>27.9 fps</td><td>28.2 fps</td></tr>
+</table></div>
+<p>영역 파일을 비워 두고 시작한 시험에서 자동 탐지는 310초 시점에 이 물체 하나만 후보로 냈고(123초 고정, 크기비 0.39), 진짜 소는 후보에 오르지 않았습니다. 아래 7절의 콘택트 시트는 제외 영역을 적용한 결과로, 회색으로 흐리던 배경 물체 칸이 사라졌습니다.</p>
+
+<h2>7. 결과와 한계</h2>
 <p>cow03(22분, 854×480, 24fps)을 실시간 엔진으로 처리한 결과입니다 (NVIDIA TITAN RTX, 기본 파라미터, 등록 60초).</p>
 <div class="tbl"><table>
 <tr><th>항목</th><th>결과</th></tr>
 <tr><td>등록 60초 후 마릿수</td><td>동시 검출 12 · 외형 군집 13 → N=13</td></tr>
-<tr><td>최종 마릿수</td><td>15 (4분 38초, 6분 44초에 확실한 새 소가 보여 자동 증가) — 오프라인 추정과 동일</td></tr>
+<tr><td>최종 마릿수</td><td>15 (4분 38초, 6분 44초에 확실한 새 소가 보여 자동 증가) (제외 영역 적용 전 기준. 적용 후 오프라인 추정은 14)</td></tr>
 <tr><td>처리 속도</td><td>평균 27.9 fps (원본 24 fps 보다 빠름 → 실시간 가능)</td></tr>
 <tr><td>ID 교정 이벤트</td><td>외형 교정 48회, 뒤바뀜 교정 6회, 재등장 배정 114회</td></tr>
 </table></div>
-<figure><img src="assets/img/idsheet_cow03_live.jpg"><figcaption>실시간 결과 콘택트 시트 (한 행 = 한 ID, 22분을 12구간으로). ID 3·6·7·14(펜스 쪽), 8·10 은 처음부터 끝까지 같은 소로 유지. ID 9·13·15 에는 왼쪽 위 흐린 영역의 박스가 섞임</figcaption></figure>
+<figure><img src="assets/img/idsheet_cow03_live.jpg"><figcaption>실시간 결과 콘택트 시트 (한 행 = 한 ID, 22분을 12구간으로). 제외 영역 적용 후. ID 3·6·8(펜스 쪽)과 10 은 처음부터 끝까지 같은 소로 유지되고, 처리 전 ID 9·13·15 에 섞이던 흐린 배경 물체가 사라짐</figcaption></figure>
 <p><b>한계</b></p>
 <ul>
 <li>등록 구간에 소들이 뭉쳐 있거나 일부가 계속 가려져 있으면 처음 N 이 적게 잡힙니다. 자동 증가가 보완하지만, 마릿수를 알면 직접 입력하세요.</li>

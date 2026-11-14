@@ -18,3 +18,4 @@ outputs/*/tracks_activity.csv
 .claude/
 outputs/live/
 configs/live_my.json
+paper/

@@ -7,9 +7,9 @@
 <link rel="stylesheet" href="assets/style.css"></head><body>
 <button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
 <nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
-<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class='on'><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li></ol>
+<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class='on'><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li><li class=''><a href='13_paper.html'><span>14</span>논문: 고정 개체군 제약과 자기지도 ReID</a></li></ol>
 <div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
-<main class="content"><div class="crumb">Lesson 13 / 13</div><h1>실시간 추적 프로그램 (RTSP 카메라)</h1>
+<main class="content"><div class="crumb">Lesson 13 / 14</div><h1>실시간 추적 프로그램 (RTSP 카메라)</h1>
 <p class="lead">지금까지의 파이프라인은 영상을 끝까지 본 뒤 ID 를 정하는 <b>오프라인</b> 방식입니다. 축사 카메라(RTSP)를 연결해 <b>실시간</b>으로 추적하려면 “미래 프레임” 없이 마릿수를 세고 ID 를 유지해야 합니다. 이 레슨에서는 처음 일정 시간 동안 마릿수를 세고 소마다 외형을 등록한 뒤, 그 N 마리 안에서만 ID 를 배정하는 온라인 알고리즘과, 파라미터를 화면에서 바로 조정하는 프로그램을 만듭니다.</p>
 
 <pre><code class="language-plaintext">입력(파일 / RTSP / 웹캠) ─ 읽기 스레드: 최신 프레임만 유지, 끊기면 재연결
@@ -189,7 +189,16 @@
 
 <h2>4. 실시간 입력: 지연이 쌓이지 않게</h2>
 <p>처리 속도가 카메라 fps 보다 조금이라도 느리면, 프레임을 순서대로 처리할 때 지연이 계속 늘어납니다. 그래서 스트림은 별도 스레드가 계속 읽으면서 <b>가장 최근 프레임 하나만</b> 남기고, 처리 스레드는 그 프레임을 가져갑니다(버린 프레임 수는 화면에 표시). 연결이 끊기면 1→2→4→5초 간격으로 다시 연결합니다. RTSP 는 기본으로 TCP 로 받아 패킷 손실로 화면이 깨지는 것을 줄입니다. 활동량은 프레임 번호가 아니라 <b>실제 시각</b>으로 계산하므로 프레임을 건너뛰어도 속도·거리가 맞습니다.</p>
-<div class="file">📄 hanwoo/live.py (L117–203)</div><pre><code class="language-python">class FrameSource:
+<div class="file">📄 hanwoo/live.py (L117–203)</div><pre><code class="language-python">        return cls(**{k: v for k, v in d.items() if k in names})
+
+
+def is_stream(src: str) -&gt; bool:
+    s = str(src).strip().lower()
+    return s.isdigit() or s.startswith((&quot;rtsp://&quot;, &quot;rtsps://&quot;, &quot;http://&quot;, &quot;https://&quot;, &quot;udp://&quot;, &quot;tcp://&quot;, &quot;rtmp://&quot;))
+
+
+# --------------------------------------------------------------------------- 입력
+class FrameSource:
     &quot;&quot;&quot;파일: 순서대로 모든 프레임 (realtime 이면 원래 속도로).
     스트림: 별도 스레드가 계속 읽고 &#x27;가장 최근 프레임&#x27; 만 넘김 (처리가 느려도 지연이 쌓이지 않음), 끊기면 재연결.&quot;&quot;&quot;
 
@@ -266,16 +275,7 @@
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 ok, fr = self.cap.read()
             if not ok:
-                return None
-        self.idx += 1
-        return self.idx - 1, (self.idx - 1) / self.fps, fr
-
-    def close(self):
-        self._stop.set()
-        if self.cap is not None:
-            self.cap.release()
-
-</code></pre>
+                return None</code></pre>
 
 <h2>5. 프로그램 사용법</h2>
 <pre><code class="language-bash">live.bat                                   # 또는 run.bat 메뉴 7
@@ -289,16 +289,40 @@ python live_app.py --headless --source rtsp://... --save-video   # 화면 없는
 <li><b>결과</b>: <code>outputs/live/&lt;이름&gt;_&lt;시각&gt;/</code> 에 <code>tracks_live.csv</code>(프레임별), <code>summary_live.csv</code>(개체별 요약), <code>events.log</code>, <code>config.json</code>(사용한 파라미터)</li>
 </ul>
 
-<h2>6. 결과와 한계</h2>
+<h2>6. 흐린 배경의 오검출 박스 처리</h2>
+<p>첫 실행 결과의 콘택트 시트에서 ID 9·13·15 행에 회색으로 흐린 crop 이 섞여 있었습니다. 원인을 찾아보니 왼쪽 뒤 울타리 너머의 <b>고정된 물체(구유로 보임)</b>를 소로 잘못 본 높이 21px 짜리 박스가 영상 22분 중 약 10분 동안 <b>정확히 같은 좌표</b>에 검출되고 있었습니다. 이 박스가 “사라진 소” 의 ID 를 번갈아 빼앗아 ID 가 섞인 것입니다. 바로 옆의 다른 작은 박스들은 왼쪽 뒤 칸의 진짜 소(머리만 보이는 경우 포함)였기 때문에, 그 영역 전체를 지우면 안 됩니다.</p>
+<figure><img src="assets/img/static_ghost.jpg"><figcaption>빨간 박스: 22분 내내 같은 자리에 검출된 배경 물체 (프레임 100 · 9330 · 14231 · 31000)</figcaption></figure>
+<p>그래서 두 가지 장치를 넣었습니다 (<code>hanwoo/zones.py</code>).</p>
+<ul>
+<li><b>검출 영역(ROI)</b>: 화면 비율 좌표의 다각형. <b>제외 영역</b> 안에 박스의 발 위치(하단 중앙)가 있으면 버리고, <b>포함 영역</b>을 그리면 그 안의 박스만 씁니다. 영상별로 <code>configs/zones/&lt;영상이름&gt;.json</code>(카메라는 <code>camera_&lt;IP&gt;.json</code>)에 저장되고, 실시간 프로그램과 오프라인 파이프라인(<code>run_activity.py</code>)이 모두 자동으로 읽습니다. 프로그램의 [영역 편집…] 에서 영상 위를 클릭해 그립니다.</li>
+<li><b>고정 오검출 자동 탐지</b>: 박스 좌표를 6px 격자로 묶어 같은 자리에 머문 시간을 누적하고, <code>120초 이상</code> 고정되었으면서 <code>크기비(박스 높이 / 그 위치의 기대 체고) &lt; 0.5</code> 인 위치를 후보로 냅니다. 소는 오래 누워 있어도 결국 자세를 바꾸고, 누운 소는 크기비가 대개 0.5 이상이라 “작다” 는 조건으로 보호합니다. 후보는 이벤트로 알리고 [고정 오검출 제외] 를 누르면 발 위치 주변의 작은 사각형이 제외 영역에 추가됩니다 (<code>static_auto</code> 를 켜면 자동 추가).</li>
+<li><b>크기 필터</b> (<code>min_size_ratio</code>, 기본 끔): 먼 배경의 작은 박스를 크기만으로 거릅니다. cow03 에서 0.5 로 하면 배경 박스는 93% 걸러지지만 가려진 진짜 소 박스도 2.9% 사라져 보조 수단으로만 씁니다.</li>
+</ul>
+<figure><img src="assets/img/zone_dialog.png"><figcaption>검출 영역 편집 창: 빨강 = 제외 영역, 노란 박스 = 현재 검출과 발 위치</figcaption></figure>
+<pre><code class="language-bash">python scripts/find_static_boxes.py outputs/cow03            # 오프라인 결과에서 후보 찾기
+python scripts/find_static_boxes.py outputs/cow03 --apply    # configs/zones/cow03.json 에 추가
+python run_activity.py E:/Video/cow/cow03.mp4 --reuse        # 영역 적용해 다시 계산</code></pre>
+<p><b>적용 결과 (cow03)</b></p>
+<div class="tbl"><table>
+<tr><th>항목</th><th>처리 전</th><th>제외 영역 적용</th></tr>
+<tr><td>오프라인: 제거된 박스</td><td>-</td><td>15,400개 (전체의 4.1%)</td></tr>
+<tr><td>오프라인: 추정 마릿수 / 최종 ID</td><td>15 / 15</td><td>14 / 14 (배경 물체가 한 마리로 세어지던 것이 빠짐)</td></tr>
+<tr><td>실시간: 등록 60초 후 N → 최종 N</td><td>13 → 15</td><td>12 → 15</td></tr>
+<tr><td>실시간: 외형 교정 / 뒤바뀜 교정 / 재등장 배정</td><td>48 / 6 / 114</td><td>31 / 8 / 94</td></tr>
+<tr><td>실시간: 처리 속도</td><td>27.9 fps</td><td>28.2 fps</td></tr>
+</table></div>
+<p>영역 파일을 비워 두고 시작한 시험에서 자동 탐지는 310초 시점에 이 물체 하나만 후보로 냈고(123초 고정, 크기비 0.39), 진짜 소는 후보에 오르지 않았습니다. 아래 7절의 콘택트 시트는 제외 영역을 적용한 결과로, 회색으로 흐리던 배경 물체 칸이 사라졌습니다.</p>
+
+<h2>7. 결과와 한계</h2>
 <p>cow03(22분, 854×480, 24fps)을 실시간 엔진으로 처리한 결과입니다 (NVIDIA TITAN RTX, 기본 파라미터, 등록 60초).</p>
 <div class="tbl"><table>
 <tr><th>항목</th><th>결과</th></tr>
 <tr><td>등록 60초 후 마릿수</td><td>동시 검출 12 · 외형 군집 13 → N=13</td></tr>
-<tr><td>최종 마릿수</td><td>15 (4분 38초, 6분 44초에 확실한 새 소가 보여 자동 증가) — 오프라인 추정과 동일</td></tr>
+<tr><td>최종 마릿수</td><td>15 (4분 38초, 6분 44초에 확실한 새 소가 보여 자동 증가) (제외 영역 적용 전 기준. 적용 후 오프라인 추정은 14)</td></tr>
 <tr><td>처리 속도</td><td>평균 27.9 fps (원본 24 fps 보다 빠름 → 실시간 가능)</td></tr>
 <tr><td>ID 교정 이벤트</td><td>외형 교정 48회, 뒤바뀜 교정 6회, 재등장 배정 114회</td></tr>
 </table></div>
-<figure><img src="assets/img/idsheet_cow03_live.jpg"><figcaption>실시간 결과 콘택트 시트 (한 행 = 한 ID, 22분을 12구간으로). ID 3·6·7·14(펜스 쪽), 8·10 은 처음부터 끝까지 같은 소로 유지. ID 9·13·15 에는 왼쪽 위 흐린 영역의 박스가 섞임</figcaption></figure>
+<figure><img src="assets/img/idsheet_cow03_live.jpg"><figcaption>실시간 결과 콘택트 시트 (한 행 = 한 ID, 22분을 12구간으로). 제외 영역 적용 후. ID 3·6·8(펜스 쪽)과 10 은 처음부터 끝까지 같은 소로 유지되고, 처리 전 ID 9·13·15 에 섞이던 흐린 배경 물체가 사라짐</figcaption></figure>
 <p><b>한계</b></p>
 <ul>
 <li>등록 구간에 소들이 뭉쳐 있거나 일부가 계속 가려져 있으면 처음 N 이 적게 잡힙니다. 자동 증가가 보완하지만, 마릿수를 알면 직접 입력하세요.</li>
@@ -308,7 +332,7 @@ python live_app.py --headless --source rtsp://... --save-video   # 화면 없는
 </ul>
 <div class="tip"><b>튜닝 순서</b>: ① 마릿수를 알면 직접 입력 ② ID 가 자주 바뀌면 <code>외형 가중치</code>↑, <code>사라짐 판정</code>↑ ③ 멀리 떨어진 소끼리 ID 가 넘어가면 <code>이동 게이트</code>↓ ④ 교정이 오락가락하면 <code>뒤바뀜 교정 여유</code>↑ ⑤ 처리 fps 가 카메라보다 낮으면 <code>입력 크기</code>↓, <code>ReID 간격</code>↑</div>
 
-<div class="pager"><a href='11_apply.html'>← 새 영상 적용과 확장</a></div></main>
+<div class="pager"><a href='11_apply.html'>← 새 영상 적용과 확장</a><a class='nx' href='13_paper.html'>논문: 고정 개체군 제약과 자기지도 ReID →</a></div></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
 b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>

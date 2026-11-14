@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QComboBox,
 
 from .config import ROOT, STATE_KO
 from .live import RECOUNT_KEYS, TRACKER_KEYS, LiveConfig, LiveEngine
+from .zones import ZONES_DIR, load_zones, zone_stem, zones_path_for
 
 # (키, 이름, 최소, 최대, 간격, 설명)   — 그룹별
 PARAMS = {
@@ -24,6 +25,8 @@ PARAMS = {
         ("iou", "NMS IoU", 0.3, 0.9, 0.05, "겹친 박스 제거 기준"),
         ("imgsz", "입력 크기(px)", 320, 1600, 32, "클수록 작은 소 검출↑, 속도↓"),
         ("reid_every", "ReID 간격(프레임)", 1, 12, 1, "작을수록 외형 정보↑, 속도↓"),
+        ("min_size_ratio", "최소 크기 비율 (0=끔)", 0, 0.9, 0.05,
+         "박스 높이 / 그 위치의 기대 체고. 먼 배경의 작은 오검출 제거 (가려진 소도 빠질 수 있어 0.3~0.4 권장)"),
     ],
     "추적기 BoT-SORT (바꾸면 추적기 재시작)": [
         ("track_high_thresh", "1차 매칭 신뢰도", 0.1, 0.9, 0.05, ""),
@@ -52,6 +55,10 @@ PARAMS = {
         ("drift_margin", "외형 교정 여유", 0, 1, 0.02, ""),
         ("grow_s", "N 증가 대기(초)", 1, 60, 1, ""),
     ],
+    "고정 오검출 탐지 (배경 물체)": [
+        ("static_min_s", "고정 시간(초)", 10, 3600, 10, "같은 자리에 이 시간 이상 남은 박스를 후보로"),
+        ("static_max_ratio", "크기비 상한", 0.1, 1.0, 0.05, "박스 높이/기대 체고가 이보다 작아야 후보 (누운 소 보호)"),
+    ],
     "활동량 (즉시 반영)": [
         ("cow_height_m", "체고(m)", 0.8, 2.0, 0.05, "원근 보정 기준"),
         ("rest_speed", "휴식 속도 상한(m/s)", 0.01, 0.5, 0.01, ""),
@@ -62,7 +69,9 @@ PARAMS = {
     ],
 }
 BOOL_PARAMS = [("auto_grow", "N 자동 증가 (확실한 새 소가 계속 보이면)"),
-               ("show_pending", "ID 대기 중인 박스(?) 표시")]
+               ("show_pending", "ID 대기 중인 박스(?) 표시"),
+               ("show_zones", "검출 영역(제외=빨강, 포함=초록) 표시"),
+               ("static_auto", "고정 오검출 후보를 확인 없이 자동 제외")]
 
 
 class MainWindow(QMainWindow):
@@ -135,6 +144,25 @@ class MainWindow(QMainWindow):
         (self.rb_rtsp if src.lower().startswith("rtsp") else self.rb_cam if src.isdigit() else self.rb_file).setChecked(True)
         lay.addWidget(g)
 
+        gz = QGroupBox("검출 영역 (축사 밖·흐린 배경 오검출 제거)")
+        fz = QVBoxLayout(gz)
+        self.lb_zone = QLabel("-")
+        self.lb_zone.setWordWrap(True)
+        bz = QPushButton("영역 편집…  (다각형 그리기)")
+        bz.clicked.connect(self._edit_zones)
+        self.bt_static = QPushButton("고정 오검출 제외 (후보 0)")
+        self.bt_static.setToolTip("같은 자리에 오래 고정된 작은 박스(구유·사료통 등 배경 물체)를 제외 영역에 추가")
+        self.bt_static.clicked.connect(self._apply_static)
+        self.bt_static.setEnabled(False)
+        fz.addWidget(self.lb_zone)
+        fz.addWidget(bz)
+        fz.addWidget(self.bt_static)
+        lay.addWidget(gz)
+        for wdg in (self.ed_file, self.ed_rtsp):
+            wdg.textChanged.connect(lambda _t: self._zone_label())
+        for rb in (self.rb_file, self.rb_rtsp, self.rb_cam):
+            rb.toggled.connect(lambda _v: self._zone_label())
+
         g2 = QGroupBox("실행 옵션")
         f2 = QVBoxLayout(g2)
         self.cb_realtime = QCheckBox("파일을 원래 속도로 재생 (끄면 최대 속도로 처리)")
@@ -171,7 +199,50 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.bt_out)
         lay.addStretch(1)
         self._buttons(False)
+        self._zone_label()
         return w
+
+    def _zone_path(self):
+        self._collect_source()
+        if self.cfg.zones_file:
+            return Path(self.cfg.zones_file)
+        return zones_path_for(self.cfg.source) or (ZONES_DIR / f"{zone_stem(self.cfg.source)}.json")
+
+    def _zone_label(self):
+        if not hasattr(self, "lb_zone"):
+            return
+        p = self._zone_path()
+        z = load_zones(p) if p.exists() else dict(include=[], exclude=[])
+        self.lb_zone.setText(f"{p.name}: 제외 {len(z['exclude'])}개, 포함 {len(z['include'])}개"
+                             if p.exists() else f"영역 없음 (저장하면 {p.name})")
+
+    def _apply_static(self):
+        if self.engine and self.engine.running():
+            self.engine.update({"static_apply": True})
+            self.statusBar().showMessage("고정 오검출 후보를 제외 영역에 추가합니다", 5000)
+            QTimer.singleShot(1500, self._zone_label)
+
+    def _edit_zones(self):
+        from .zone_editor import ZoneDialog, grab_frame
+
+        path = self._zone_path()
+        eng = self.engine
+        if eng is not None and eng.running() and eng.raw_frame is not None:
+            frame = eng.raw_frame.copy()
+            boxes = [tuple(b) for b in getattr(eng, "last_boxes", [])]
+        else:
+            if not self.cfg.source:
+                QMessageBox.warning(self, "입력 없음", "먼저 영상 파일이나 RTSP 주소를 입력하세요.")
+                return
+            frame, boxes = grab_frame(self.cfg.source), []
+        dlg = ZoneDialog(frame, path, boxes, self)
+        if dlg.exec():
+            if dlg.path != path:
+                self._set("zones_file", str(dlg.path))
+            if self.engine and self.engine.running():
+                self.engine.update({"zones_reload": True})
+                self.statusBar().showMessage("검출 영역 적용 (다음 프레임부터)", 5000)
+            self._zone_label()
 
     def _browse(self):
         p, _ = QFileDialog.getOpenFileName(self, "영상 선택", str(Path(self.ed_file.text()).parent if self.ed_file.text() else ROOT),
@@ -403,7 +474,11 @@ class MainWindow(QMainWindow):
             f"파일 {st['frame']}/{st['n_frames']} 프레임"
         cnt = f"등록 결과: 동시검출 {st['n_sim']} · 외형군집 {st['n_clu']}" if st["phase"] == "track" else ""
         self.lb_info.setText(f"{src}   t={st['t']:.1f}s   처리 {st['fps']:.1f} fps (원본 {st['src_fps']:.0f} fps)"
-                             + (f"   버린 프레임 {st['dropped']}" if st["stream"] else "") + f"\n{cnt}")
+                             + (f"   버린 프레임 {st['dropped']}" if st["stream"] else "")
+                             + f"\n영역·크기 필터로 제외한 박스 {st.get('filtered', 0)}   {cnt}")
+        n_st = st.get("static", 0)
+        self.bt_static.setText(f"고정 오검출 제외 (후보 {n_st})")
+        self.bt_static.setEnabled(n_st > 0)
         ids = st["ids"]
         self.table.setRowCount(len(ids))
         for r, d in enumerate(ids):

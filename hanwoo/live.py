@@ -27,6 +27,8 @@ import numpy as np
 from .config import MODELS_DIR, OUTPUT_DIR, ROOT, STATE_NAMES
 from .online import OnlineHerd, _iou_matrix
 from .render import STATE_COLORS, _draw_panel, _label, id_color
+from .zones import (ZONES_DIR, StaticDetector, ZoneFilter, add_exclusions, load_zones, size_ok, zone_stem,
+                    zones_path_for)
 
 TRACKER_KEYS = ("track_high_thresh", "track_low_thresh", "new_track_thresh", "track_buffer", "match_thresh")
 RECOUNT_KEYS = ("enroll_s", "count_conf", "count_stable_s", "count_min_track_s", "count_mode", "herd_size",
@@ -93,6 +95,13 @@ class LiveConfig:
     # 표시 / 저장
     trail_s: float = 3.0
     show_pending: bool = True
+    show_zones: bool = True
+    # 검출 영역 (축사 밖·흐린 배경 오검출 제거)
+    zones_file: str = ""                      # 비우면 configs/zones/<영상이름>.json → default.json 자동
+    min_size_ratio: float = 0.0               # 박스 높이 / 기대 체고 하한 (0=끔, 0.3~0.5 권장)
+    static_min_s: float = 120.0               # 같은 자리에 이 시간 이상 고정된 작은 박스 = 배경 물체 오검출 후보
+    static_max_ratio: float = 0.5             # 후보 크기비 상한 (누운 소 보호)
+    static_auto: bool = False                 # 후보를 확인 없이 바로 제외 영역에 추가
     panel_width: int = 380
     save_video: bool = False
     save_csv: bool = True
@@ -218,6 +227,11 @@ class LiveEngine:
         self._yolo = None
         self._reid = None
         self._gen = 0
+        self._zf = None
+        self.raw_frame = None
+        self.n_filtered = 0
+        self.static_candidates = []
+        self._apply_static = False
 
     # ---------------- 제어
     def start(self):
@@ -310,13 +324,57 @@ class LiveEngine:
                 tracker |= k in TRACKER_KEYS
         if tracker:
             self._reset_tracker()
+        if "static_apply" in ch:
+            self._apply_static = True
+        if "zones_file" in ch or "zones_reload" in ch:
+            self._zf = None                  # 다음 프레임에서 영역 다시 읽기
         if "herd_size" in ch and herd.phase == "track" and self.cfg.herd_size > 0 \
                 and self.cfg.herd_size != len(herd.slots):
             self._recount = True
 
+    def zones_path(self):
+        return Path(self.cfg.zones_file) if self.cfg.zones_file else zones_path_for(self.cfg.source)
+
+    def _load_zones(self, W, H):
+        p = self.zones_path()
+        self._zf = ZoneFilter(load_zones(p), W, H)
+        self._zf_size = (W, H)
+        if self._zf.active:
+            self.log(f"검출 영역 적용: {p.name} (포함 {len(self._zf.inc)}, 제외 {len(self._zf.exc)})")
+
+    def _static_step(self, herd, boxes, dt, t, W, H):
+        """배경 물체 오검출(같은 자리에 오래 고정된 작은 박스) 탐지 → 후보 알림 / 제외 영역 추가."""
+        cfg = self.cfg
+        st = self._static
+        st.min_s, st.max_ratio = cfg.static_min_s, cfg.static_max_ratio
+        st.add(boxes, dt)
+        if herd.phase != "track" or (t - self._static_t < 10 and not self._apply_static):
+            return
+        self._static_t = t
+        cands = [c for c in st.candidates(herd.persp, W, H) if self._zf.keep(c["box"])]   # 아직 제외 안 된 것만
+        for c in cands:
+            k = tuple(round(v) for v in c["box"])
+            if k not in self._static_seen:
+                self._static_seen.add(k)
+                herd.event(t, f"고정 오검출 후보: 박스 {k} {c['seconds']:.0f}초 고정, 크기비 {c['ratio']}"
+                              + ("" if cfg.static_auto else " → [고정 오검출 제외] 로 적용"))
+        self.static_candidates = cands
+        if cands and (cfg.static_auto or self._apply_static):
+            path = self.zones_path() or (ZONES_DIR / f"{zone_stem(cfg.source)}.json")
+            add_exclusions(path, [c["rect"] for c in cands])
+            if not cfg.zones_file and zones_path_for(cfg.source) != path:
+                cfg.zones_file = str(path)
+            self._zf = None
+            self.static_candidates = []
+            herd.event(t, f"고정 오검출 {len(cands)}개를 제외 영역에 추가 ({path.name})")
+        self._apply_static = False
+
     def _run(self):
         from .reid import CROP, crop_box, embed_crops
 
+        self._zf, self._zf_size, self.n_filtered = None, None, 0
+        self._static = StaticDetector(min_s=self.cfg.static_min_s, max_ratio=self.cfg.static_max_ratio)
+        self._static_t, self._static_seen, self.static_candidates = 0.0, set(), []
         cfg = self.cfg
         self.log(f"입력 열기: {cfg.source}")
         src = FrameSource(cfg, log=self.log)
@@ -362,6 +420,7 @@ class LiveEngine:
                 continue
             tic = time.time()
             H, W = frame.shape[:2]
+            self.raw_frame = frame
             # 1) 검출 + 추적
             res = self._yolo.track(frame, persist=True, tracker=self._tracker_yaml, imgsz=cfg.imgsz, conf=cfg.conf,
                                    iou=cfg.iou, classes=self._classes, agnostic_nms=True,
@@ -374,6 +433,14 @@ class LiveEngine:
                 xyxy = res.boxes.xyxy.cpu().numpy()
                 ids = res.boxes.id.cpu().numpy().astype(int)
                 confs = res.boxes.conf.cpu().numpy()
+                self.last_boxes = xyxy.copy()       # 영역 편집 창 참고용 (필터 전)
+                # 검출 영역(ROI) · 크기 필터: 축사 밖 / 흐린 배경의 오검출 제거
+                if self._zf is None or self._zf_size != (W, H):
+                    self._load_zones(W, H)
+                keep = np.array([self._zf.keep(b) and (herd.phase != "track" or
+                                                       size_ok(b, herd.persp, cfg.min_size_ratio)) for b in xyxy], bool)
+                self.n_filtered += int((~keep).sum())
+                xyxy, ids, confs = xyxy[keep], ids[keep], confs[keep]
                 occ = _iou_matrix(xyxy).max(1) if len(xyxy) > 1 else np.zeros(len(xyxy))
                 for b, i, c, o in zip(xyxy, ids, confs, occ):
                     x1, y1, x2, y2 = np.clip(b, 0, [W, H, W, H]).astype(int)
@@ -389,6 +456,7 @@ class LiveEngine:
                     embs = {d[0]: e for d, e in zip(sel, E)}
             dt = 0.0 if t_prev is None else t - t_prev
             t_prev = t
+            self._static_step(herd, [d[1] for d in dets], dt, t, W, H)
             # 3) 마릿수 / ID
             out = herd.step(t, dets, embs, dt)
             # 4) 그리기 + 저장
@@ -428,7 +496,7 @@ class LiveEngine:
     # ---------------- 표시
     def _draw(self, frame, out, herd: OnlineHerd, trails, t, src, fps_ema):
         cfg = self.cfg
-        img = frame.copy()
+        img = self._zf.draw(frame.copy()) if cfg.show_zones and self._zf is not None else frame.copy()
         rows = []
         for key, box, conf, si, st in out:
             x1, y1, x2, y2 = map(int, box)
@@ -486,7 +554,8 @@ class LiveEngine:
         return dict(phase=herd.phase, t=t, frame=fno, enroll_left=max(0.0, self.cfg.enroll_s - (t - (herd.t0 or t))),
                     n_sim=herd.n_sim, n_clu=herd.n_clu, N=len(herd.slots), visible=len(rows), fps=fps_ema or 0.0,
                     src_fps=src.fps, n_frames=src.n_frames, stream=src.stream, connected=src.connected,
-                    dropped=src.dropped, ids=ids, events=list(herd.events)[-50:])
+                    dropped=src.dropped, filtered=getattr(self, "n_filtered", 0),
+                    static=len(self.static_candidates), ids=ids, events=list(herd.events)[-50:])
 
     def _write_summary(self, herd: OnlineHerd, out_dir: Path):
         rows = []

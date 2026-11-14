@@ -7,9 +7,9 @@
 <link rel="stylesheet" href="assets/style.css"></head><body>
 <button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
 <nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
-<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class='on'><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class=''><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li></ol>
+<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class='on'><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class=''><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li><li class=''><a href='13_paper.html'><span>14</span>논문: 고정 개체군 제약과 자기지도 ReID</a></li></ol>
 <div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
-<main class="content"><div class="crumb">Lesson 10 / 13</div><h1>결과 영상과 대시보드</h1>
+<main class="content"><div class="crumb">Lesson 10 / 14</div><h1>결과 영상과 대시보드</h1>
 <p class="lead">숫자만으로는 현장에서 쓰기 어렵습니다. 두 가지 결과물을 만듭니다: ① 개체 ID·궤적·실시간 패널이 그려진 <b>결과 영상</b>, ② 개체별 지표를 한눈에 보는 <b>HTML 대시보드</b>.</p>
 
 <h2>1. 결과 영상</h2>
@@ -111,6 +111,7 @@ from .detect_track import run_detect_track
 from .identity import assign_identities, attach_embeddings, estimate_herd_size, split_swaps
 from .render import render_video
 from .stitching import clean_short, fit_perspective, relabel_and_interpolate, stitch_tracklets
+from .zones import ZoneFilter, load_zones, size_ok, zones_path_for
 
 
 def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path = OUTPUT_DIR,
@@ -143,6 +144,20 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     raw_ids = raw.tid.nunique()
 
     raw = raw.assign(rtid=raw.tid)                 # 추적기 원본 id (ReID 임베딩 연결용)
+    # 검출 영역(ROI): 축사 밖·흐린 배경의 오검출 박스 제거 (configs/zones/&lt;영상&gt;.json)
+    zpath = Path(cfg.zones_file) if cfg.zones_file else zones_path_for(video_path)
+    zf = ZoneFilter(load_zones(zpath), meta[&quot;width&quot;], meta[&quot;height&quot;])
+    n_zone = 0
+    if zf.active:
+        keep = zf.keep_df(raw)
+        n_zone = int((~keep).sum())
+        raw = raw[keep].reset_index(drop=True)
+        print(f&quot;  zones {zpath.name}: removed {n_zone} boxes ({n_zone / max(len(keep), 1):.1%})&quot;)
+    if cfg.min_size_ratio &gt; 0:
+        p0 = fit_perspective(raw)
+        keep = np.array([size_ok(b, p0, cfg.min_size_ratio) for b in raw[[&quot;x1&quot;, &quot;y1&quot;, &quot;x2&quot;, &quot;y2&quot;]].to_numpy()], bool)
+        n_zone += int((~keep).sum())
+        raw = raw[keep].reset_index(drop=True)
     clean = clean_short(raw, cfg)
     persp = fit_perspective(clean)
     use_id = cfg.use_identity and Path(cfg.reid_weights).exists()
@@ -195,6 +210,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
         render_time_s=round(t_render, 1), perspective=dict(a=persp[0], b=persp[1]), n_links=len(links),
         method=&quot;reid+herd&quot; if use_id else &quot;stitch2&quot;, herd_size=id_stats[&quot;herd_size&quot;] if id_stats else None,
         unassigned_det_ratio=id_stats[&quot;unassigned_det_ratio&quot;] if id_stats else None, n_splits=len(splits),
+        zone_removed=n_zone, zones=zpath.name if zf.active else None,
     )
     (out_dir / &quot;result.json&quot;).write_text(json.dumps(dict(result=result, info=info), ensure_ascii=False, indent=2),
                                          encoding=&quot;utf-8&quot;)

@@ -52,6 +52,10 @@ python scripts/identity_sheet.py outputs/cow03    # ID 일관성 확인용 콘�
   (마릿수를 알면 `마릿수 N` 에 직접 입력하는 것이 가장 정확)
 - **실시간 ID**: N 개 개체 슬롯 안에서만 ID 배정 (외형 + 이동거리, 헝가리안), 겹친 뒤 뒤바뀜 교정, 확실한 새 소가 계속 보이면 N 자동 증가
 - **파라미터 탭**: 검출·ID 배정·활동량은 즉시 반영, 추적기 설정은 추적기만 재시작(ID 유지), 카운트 설정은 [마릿수 다시 세기]
+- **검출 영역 / 고정 오검출**: [영역 편집…] 으로 제외(빨강)·포함(초록) 다각형을 그리면 박스 발 위치로 거릅니다.
+  `configs/zones/<영상이름>.json` (카메라는 `camera_<IP>.json`) 에 저장되고 오프라인 `run_activity.py` 도 자동 사용.
+  같은 자리에 120초 이상 고정된 작은 박스(구유 등 배경 물체)는 후보로 알려 주고 [고정 오검출 제외] 로 추가
+  (오프라인 결과는 `python scripts/find_static_boxes.py outputs/cow03 --apply`)
 - **저장**: `outputs/live/<이름>_<시각>/` 에 `tracks_live.csv`, `summary_live.csv`, `events.log`, 선택 시 결과 영상
 ```bash
 python live_app.py                                              # GUI

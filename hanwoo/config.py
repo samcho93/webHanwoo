@@ -38,6 +38,10 @@ class PipelineConfig:
     interp_max_gap_s: float = 0.5       # 보간(표시용) 최대 구간 — 순간적인 검출 누락만 메움. 더 긴 공백은
                                         # '보이지 않음'으로 두어 가상 박스·가짜 이동경로가 생기지 않게 한다
 
+    # ---- 검출 영역 (축사 밖·흐린 배경 오검출 제거, hanwoo/zones.py) ----
+    zones_file: str = ""                # 비우면 configs/zones/<영상이름>.json → default.json 자동
+    min_size_ratio: float = 0.0         # 박스 높이 / 기대 체고 하한 (0=끔)
+
     # ---- 고정 개체군 ID 배정 (ReID + 마릿수 제약) ----
     reid_weights: str = str(MODELS_DIR / "hanwoo_reid.pt")  # 없으면 기존 2단계 정합만 사용
     use_identity: bool = True
