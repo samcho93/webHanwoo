@@ -1,8 +1,8 @@
-"""한우 재식별(ReID) 모델: 소 crop → 256차원 L2 정규화 임베딩.
+"""Hanwoo re-identification (ReID) model: cow crop → 256-d L2-normalised embedding.
 
-- 백본: ImageNet 사전학습 ResNet50, 마지막 stride 1 (작은 소 crop 에서 공간 해상도 유지)
-- 헤드: GAP → BN → Linear(256) → L2 정규화
-- 학습: scripts/train_reid.py (추적 결과를 '자기지도' 라벨로 사용, Supervised-Contrastive loss)
+- Backbone: ImageNet-pretrained ResNet50 with last stride 1 (keeps spatial resolution for small cow crops)
+- Head: GAP → BN → Linear(256) → L2 normalisation
+- Training: scripts/train_reid.py (tracking results used as self-supervised labels, Supervised-Contrastive loss)
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-CROP = 128                       # 입력 크기 (정사각 letterbox)
+CROP = 128                       # input size (square letterbox)
 MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
 
@@ -27,7 +27,7 @@ class CowReID(nn.Module):
 
         w = torchvision.models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
         r = torchvision.models.resnet50(weights=w)
-        # last stride 1 (BoT trick): 128px 입력에서 4x4 → 8x8 특징맵
+        # last stride 1 (BoT trick): 4x4 → 8x8 feature map at 128px input
         r.layer4[0].conv2.stride = (1, 1)
         r.layer4[0].downsample[0].stride = (1, 1)
         self.backbone = nn.Sequential(*list(r.children())[:-2])
@@ -42,7 +42,7 @@ class CowReID(nn.Module):
 
 # --------------------------------------------------------------------------- crop
 def crop_box(frame: np.ndarray, box, size: int = CROP, pad: float = 0.08) -> np.ndarray:
-    """bbox 를 약간 넓혀 자른 뒤 비율을 유지한 채 size×size 회색 캔버스에 배치 (letterbox)."""
+    """Crop the bbox slightly enlarged and place it, aspect ratio kept, on a size×size grey canvas (letterbox)."""
     H, W = frame.shape[:2]
     x1, y1, x2, y2 = box
     w, h = x2 - x1, y2 - y1
@@ -60,14 +60,14 @@ def crop_box(frame: np.ndarray, box, size: int = CROP, pad: float = 0.08) -> np.
 
 
 def to_tensor(crops_bgr: np.ndarray) -> torch.Tensor:
-    """(N,H,W,3) uint8 BGR → 정규화된 (N,3,H,W) float tensor"""
+    """(N,H,W,3) uint8 BGR → normalised (N,3,H,W) float tensor"""
     x = crops_bgr[..., ::-1].astype(np.float32) / 255.0
     x = (x - MEAN) / STD
     return torch.from_numpy(np.ascontiguousarray(x.transpose(0, 3, 1, 2)))
 
 
 def max_iou_others(df: pd.DataFrame) -> np.ndarray:
-    """각 검출 박스가 같은 프레임의 다른 박스와 갖는 최대 IoU (가림 정도 지표)."""
+    """Max IoU of each detection box with other boxes in the same frame (occlusion indicator)."""
     out = np.zeros(len(df))
     for _, idx in df.groupby("frame").indices.items():
         b = df[["x1", "y1", "x2", "y2"]].to_numpy()[idx]
@@ -83,7 +83,7 @@ def max_iou_others(df: pd.DataFrame) -> np.ndarray:
     return out
 
 
-# --------------------------------------------------------------------------- 추론
+# --------------------------------------------------------------------------- inference
 def load_reid(weights: str | Path, device: str = "cuda") -> CowReID:
     m = CowReID(pretrained=False)
     m.load_state_dict(torch.load(weights, map_location="cpu"))
@@ -96,7 +96,7 @@ def embed_crops(model: CowReID, crops: np.ndarray, device: str = "cuda", bs: int
     for i in range(0, len(crops), bs):
         x = to_tensor(crops[i:i + bs]).to(device)
         with torch.autocast("cuda", dtype=torch.float16, enabled=device.startswith("cuda")):
-            e = model(x) + model(torch.flip(x, dims=[3]))  # 좌우반전 TTA
+            e = model(x) + model(torch.flip(x, dims=[3]))  # horizontal-flip TTA
         outs.append(F.normalize(e.float(), dim=1).cpu().numpy())
     return np.concatenate(outs) if outs else np.zeros((0, 256), np.float32)
 
@@ -104,9 +104,9 @@ def embed_crops(model: CowReID, crops: np.ndarray, device: str = "cuda", bs: int
 @torch.no_grad()
 def extract_embeddings(video_path, df: pd.DataFrame, model: CowReID, every: int = 4,
                        device: str = "cuda", verbose_every: int = 5000) -> pd.DataFrame:
-    """검출 df(frame,tid,x1..y2,conf) 중 every 프레임마다 crop → 임베딩.
+    """Crop → embed detections df(frame,tid,x1..y2,conf) every `every` frames.
 
-    반환: DataFrame[frame, tid, occ(최대 IoU), conf] + emb(N,256) 를 attrs 로.
+    Returns: DataFrame[frame, tid, occ (max IoU), conf] with emb(N,256) in attrs.
     """
     sel = df[df.frame % every == 0].copy().reset_index(drop=True)
     sel["occ"] = max_iou_others(sel)

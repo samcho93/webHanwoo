@@ -1,32 +1,32 @@
-<p class="lead">YOLO11x(teacher)로 축사 영상의 프레임을 자동 라벨링해 YOLO 형식 데이터셋을 만듭니다. 사람의 라벨링 없이 약 1,100장, 11,000개 이상의 박스를 확보합니다.</p>
+<p class="lead">We use YOLO11x (the teacher model) to auto-label frames from the barn videos and build a YOLO-format dataset. Without any human labeling, we obtain about 1,100 images with more than 11,000 boxes.</p>
 
-<h2>1. YOLO 데이터셋 형식</h2>
+<h2>1. YOLO dataset format</h2>
 <pre><code class="language-plaintext">data/hanwoo_ds/
-├─ hanwoo.yaml          # 경로·클래스 정의
+├─ hanwoo.yaml          # paths and class definitions
 ├─ images/train/cow01_000024.jpg ...
 ├─ images/val/...
-├─ labels/train/cow01_000024.txt ...   # 이미지와 같은 이름
+├─ labels/train/cow01_000024.txt ...   # same name as the image
 └─ labels/val/...</code></pre>
-<p>라벨 파일 한 줄 = 박스 하나: <code>클래스 x중심 y중심 너비 높이</code> (모두 0~1 로 정규화)</p>
+<p>One line in a label file = one box: <code>class x_center y_center width height</code> (all normalized to 0–1)</p>
 <pre><code class="language-plaintext">0 0.632164 0.237500 0.068493 0.135417
 0 0.401639 0.264583 0.049180 0.120833</code></pre>
 
-<h2>2. 좋은 자동 라벨을 위한 4가지 장치</h2>
+<h2>2. Four safeguards for good auto-labels</h2>
 <table>
-<tr><th>장치</th><th>이유</th></tr>
-<tr><td><b>영상 단위</b> train/val 분리 (val = cow02, cow09)</td><td>같은 영상의 이웃 프레임은 거의 똑같다. 섞으면 검증 점수가 부풀려져 ‘다른 영상에서의 성능’ 을 알 수 없다.</td></tr>
-<tr><td>프레임 간격 샘플링 (1초, 긴 영상은 3초)</td><td>중복 프레임 제거, 22분 영상이 데이터를 독점하지 않도록</td></tr>
-<tr><td>TTA(<code>augment=True</code>) + 고해상도 1280</td><td>teacher 성능을 최대로: 좌우반전·다중 스케일 추론 결과를 합침</td></tr>
-<tr><td><b>무시 영역(ignore region)</b>: 신뢰도 0.15~0.40 박스는 회색으로 칠함</td><td>애매한 박스를 정답으로 넣으면 오라벨, 빼면 ‘배경’ 으로 학습되어 소를 배경이라고 가르치게 된다. 회색으로 지워 둘 다 피한다.</td></tr>
+<tr><th>Safeguard</th><th>Reason</th></tr>
+<tr><td>Train/val split <b>by video</b> (val = cow02, cow09)</td><td>Neighboring frames from the same video are almost identical. Mixing them inflates the validation score, and you can no longer tell how the model performs ‘on a different video’.</td></tr>
+<tr><td>Frame-interval sampling (1 s, 3 s for long videos)</td><td>Removes duplicate frames and keeps the 22-minute video from dominating the data</td></tr>
+<tr><td>TTA (<code>augment=True</code>) + high resolution 1280</td><td>Maximizes teacher performance by merging horizontal-flip and multi-scale inference results</td></tr>
+<tr><td><b>Ignore regions</b>: boxes with confidence 0.15–0.40 are painted gray</td><td>Including ambiguous boxes as ground truth adds wrong labels; leaving them out teaches the model that those cattle are ‘background’. Graying them out avoids both.</td></tr>
 </table>
-<figure><img src="assets/img/ds_sample.jpg"><figcaption>자동 라벨 예시 — 초록 박스: 정답(≥0.40), 회색 영역: 무시 영역(애매한 검출)</figcaption></figure>
+<figure><img src="assets/img/ds_sample.jpg"><figcaption>Auto-label example — green boxes: ground truth (≥0.40), gray areas: ignore regions (ambiguous detections)</figcaption></figure>
 
-<h2>3. 코드</h2>
+<h2>3. Code</h2>
 <!--CODE:scripts/prepare_dataset.py-->
 
-<h2>4. 실행</h2>
+<h2>4. Run</h2>
 <pre><code class="language-bash">python scripts/prepare_dataset.py E:/Video/cow --teacher models/yolo11x.pt --val cow02 cow09</code></pre>
-<table><tr><th>split</th><th>이미지</th><th>정답 박스</th><th>무시 영역</th></tr>
-<tr><td>train (8개 영상)</td><td>918</td><td>9,635</td><td>1,940</td></tr>
+<table><tr><th>split</th><th>Images</th><th>Ground-truth boxes</th><th>Ignore regions</th></tr>
+<tr><td>train (8 videos)</td><td>918</td><td>9,635</td><td>1,940</td></tr>
 <tr><td>val (cow02, cow09)</td><td>179</td><td>1,918</td><td>220</td></tr></table>
-<div class="note"><b>한계</b>: teacher 가 틀리면 student 도 틀린 것을 배웁니다. 정밀도가 더 필요하면 이 자동 라벨을 <a href="https://www.cvat.ai/">CVAT</a> 나 <a href="https://labelstud.io/">Label Studio</a> 에 올려 사람이 <b>수정만</b> 하는 방식(모델 보조 라벨링)이 가장 효율적입니다. 검증셋(val)만이라도 사람이 검수하면 평가 신뢰도가 크게 올라갑니다.</div>
+<div class="note"><b>Limitation</b>: when the teacher is wrong, the student learns the mistake too. If you need higher precision, the most efficient approach is to load these auto-labels into <a href="https://www.cvat.ai/">CVAT</a> or <a href="https://labelstud.io/">Label Studio</a> and have people <b>only correct</b> them (model-assisted labeling). Even having people review just the validation set (val) greatly increases the reliability of the evaluation.</div>

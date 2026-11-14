@@ -1,20 +1,20 @@
-<p class="lead">미세조정한 모델과 축사용 추적·정합·활동량 알고리즘으로 폴더의 10개 영상을 모두 처리한 결과입니다.</p>
+<p class="lead">These are the results of processing all 10 videos in the folder with the fine-tuned model and the barn-specific tracking, stitching and activity algorithms.</p>
 
-<h2>1. 실행</h2>
+<h2>1. Running it</h2>
 <pre><code class="language-bash">python run_activity.py E:/Video/cow</code></pre>
 <!--CODE:run_activity.py-->
 
-<h2>2. 영상별 결과</h2>
-<p>영상 이름을 누르면 해당 대시보드(결과 영상 포함)가 열립니다. <a href="../outputs/index.html">전체 요약 대시보드</a></p>
+<h2>2. Results per video</h2>
+<p>Click a video name to open its dashboard (including the result video). <a href="../outputs/index.html">Overall summary dashboard</a></p>
 <!--RESULTS-->
 
-<h2>3. 결과 영상 미리보기</h2>
+<h2>3. Result video previews</h2>
 <!--VIDEOS-->
 
-<h2>4. 결과 해석과 한계</h2>
+<h2>4. Interpreting the results and limitations</h2>
 <ul>
-<li><b>최종 ID 수 vs 실제 두수</b>: 정합 후 ID 수가 축사 두수(약 11~13)에 가까울수록 좋습니다. 남는 초과 ID 는 주로 ① 화면 가장자리에서 잠깐 보이는 옆 칸의 소, ② 오래 가려져 있다가 멀리서 다시 나타난 소입니다.</li>
-<li><b>긴 영상(cow03, 22분)</b>은 2단계 정합만으로는 ID 가 29개 남았지만, ReID + 고정 개체군 배정(레슨 08) 후 추정 두수 N 과 같은 수로 유지됩니다.</li>
-<li><b>절대 거리</b>는 체고 기반 근사이므로 ±20~30% 오차가 있을 수 있습니다. 그러나 같은 카메라 안에서의 <b>개체 간·시간대 간 상대 비교</b>는 신뢰할 수 있습니다.</li>
-<li>정답(Ground Truth) ID 라벨이 있으면 MOTA, IDF1, HOTA 등 표준 추적 지표로 정량 평가할 수 있습니다 (TrackEval 라이브러리).</li>
+<li><b>Final ID count vs. actual herd size</b>: the closer the post-stitching ID count is to the number of animals in the pen (about 11–13), the better. Leftover extra IDs are mostly ① animals in the neighboring pen briefly visible at the edge of the frame, and ② animals that were occluded for a long time and reappeared far away.</li>
+<li>For the <b>long video (cow03, 22 minutes)</b>, two-stage stitching alone still left 29 IDs, but after ReID + fixed-herd assignment (Lesson 08) the count is held at the estimated herd size N.</li>
+<li><b>Absolute distance</b> is an approximation based on body height and may be off by ±20–30%. However, <b>relative comparisons between animals and between time periods</b> within the same camera are reliable.</li>
+<li>If ground-truth ID labels are available, you can evaluate quantitatively with standard tracking metrics such as MOTA, IDF1 and HOTA (TrackEval library).</li>
 </ul>

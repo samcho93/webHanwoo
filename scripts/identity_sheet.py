@@ -1,8 +1,8 @@
-"""ID 일관성 육안 검증용 '콘택트 시트': 각 ID 행에 영상 전 구간에서 고르게 뽑은 crop 을 나열.
+"""'Contact sheet' for visually checking ID consistency: each ID row shows crops sampled evenly over the whole video.
 
-한 행이 처음부터 끝까지 같은 소로 보이면 ID 가 유지된 것이다.
-사용:  python scripts/identity_sheet.py outputs/cow03 --cols 12
-      python scripts/identity_sheet.py outputs/live/cow03_20261114_xxxxxx   (실시간 결과)
+If a row shows the same cow from start to end, the ID was kept.
+Usage:  python scripts/identity_sheet.py outputs/cow03 --cols 12
+      python scripts/identity_sheet.py outputs/live/cow03_20261114_xxxxxx   (real-time result)
 """
 import argparse
 import sys
@@ -26,7 +26,7 @@ def main():
     ap.add_argument("--dst", default=None)
     a = ap.parse_args()
     od = Path(a.out_dir)
-    if (od / "tracks_live.csv").exists():          # 실시간 프로그램(live_app.py) 결과
+    if (od / "tracks_live.csv").exists():          # result of the real-time app (live_app.py)
         import json
         act = pd.read_csv(od / "tracks_live.csv").rename(columns={"id": "tid"})
         video = a.video or json.loads((od / "config.json").read_text(encoding="utf-8"))["source"]
@@ -58,7 +58,7 @@ def main():
         y = head + r * S
         cv2.rectangle(sheet, (4, y + 20), (22, y + S - 20), col, -1)
         cv2.putText(sheet, f"ID{tid}", (26, y + S // 2 + 5), 0, 0.45, (30, 30, 30), 1, cv2.LINE_AA)
-    # 순차 디코딩 (임의 탐색(seek)은 일부 코덱에서 프레임을 놓친다)
+    # sequential decoding (random seeking misses frames with some codecs)
     cap = cv2.VideoCapture(video)
     by_f = {}
     for p in picks:

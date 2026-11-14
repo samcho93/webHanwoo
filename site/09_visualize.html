@@ -1,28 +1,28 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>결과 영상과 대시보드 · 한우 활동량 AI 강좌</title>
+<title>Result Video and Dashboard · Hanwoo Activity AI Course</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <link rel="stylesheet" href="assets/style.css"></head><body>
-<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
-<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
-<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class='on'><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class=''><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li><li class=''><a href='13_paper.html'><span>14</span>논문: 고정 개체군 제약과 자기지도 ReID</a></li></ol>
-<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
-<main class="content"><div class="crumb">Lesson 10 / 14</div><h1>결과 영상과 대시보드</h1>
-<p class="lead">숫자만으로는 현장에서 쓰기 어렵습니다. 두 가지 결과물을 만듭니다: ① 개체 ID·궤적·실시간 패널이 그려진 <b>결과 영상</b>, ② 개체별 지표를 한눈에 보는 <b>HTML 대시보드</b>.</p>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="Menu">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 Hanwoo Activity AI</a>
+<div class="sub">YOLO · Tracking · Activity · Dashboard</div><ol><li class=''><a href='index.html'><span>00</span>Course Introduction and Overview</a></li><li class=''><a href='01_env.html'><span>01</span>Setting Up the Environment</a></li><li class=''><a href='02_data.html'><span>02</span>Understanding the Data (Barn Videos)</a></li><li class=''><a href='03_detect.html'><span>03</span>Object Detection: Trying Pretrained YOLO</a></li><li class=''><a href='04_dataset.html'><span>04</span>Building Training Data Automatically (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>Fine-tuning and Evaluating YOLO</a></li><li class=''><a href='06_tracking.html'><span>06</span>Multi-Object Tracking (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID Consistency: Offline Tracklet Stitching</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID Training and Fixed-Herd ID Keeping</a></li><li class=''><a href='08_activity.html'><span>09</span>Activity Measurement Algorithm</a></li><li class='on'><a href='09_visualize.html'><span>10</span>Result Video and Dashboard</a></li><li class=''><a href='10_results.html'><span>11</span>Running All Videos and Analysing Results</a></li><li class=''><a href='11_apply.html'><span>12</span>Applying to New Videos and Extending</a></li><li class=''><a href='12_live.html'><span>13</span>Real-Time Tracking App (RTSP Cameras)</a></li><li class=''><a href='13_paper.html'><span>14</span>Paper: Fixed-Herd Constraint and Self-Supervised ReID</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ Result dashboards</a></div></nav>
+<main class="content"><div class="crumb">Lesson 10 / 14</div><h1>Result Video and Dashboard</h1>
+<p class="lead">Numbers alone are hard to use on the farm. We produce two outputs: ① a <b>result video</b> with animal IDs, tracks and a live panel drawn on it, and ② an <b>HTML dashboard</b> that shows per-animal metrics at a glance.</p>
 
-<h2>1. 결과 영상</h2>
-<figure><img src="assets/img/snap_tracked.jpg"><figcaption>왼쪽: 원본 + ID 박스·최근 3초 궤적·상태 점, 오른쪽: 실시간 미니 대시보드</figcaption></figure>
+<h2>1. Result video</h2>
+<figure><img src="assets/img/snap_tracked.jpg"><figcaption>Left: original + ID boxes, last 3 seconds of track, state dot; right: live mini dashboard</figcaption></figure>
 <ul>
-<li>ID 별 고유 색: 황금비(0.618…)로 색상환을 돌려 이웃 ID 끼리 색이 잘 구분되게</li>
-<li>보간 구간(0.5초 이하의 순간 누락)만 <b>얇은 박스</b>로 표시, 궤적은 실제 검출 위치로만 그림 → 소가 없는 곳에 경로가 생기지 않음</li>
-<li>박스 오른쪽 위 점: 회색=휴식, 주황=국소활동, 초록=보행</li>
-<li>FFmpeg 파이프로 프레임을 직접 넘겨 <b>H.264 / yuv420p / faststart</b> 인코딩 → 브라우저에서 바로 재생, 스트리밍 시작이 빠름</li>
+<li>A unique color per ID: the hue wheel is rotated by the golden ratio (0.618…) so neighboring IDs get clearly distinguishable colors</li>
+<li>Only interpolated segments (momentary gaps of 0.5 s or less) are drawn as <b>thin boxes</b>, and tracks are drawn only through real detection positions → no paths appear where there is no animal</li>
+<li>Dot at the top right of the box: gray = Rest, orange = Active (local activity), green = Walk</li>
+<li>Frames are piped directly to FFmpeg and encoded as <b>H.264 / yuv420p / faststart</b> → plays directly in the browser and starts streaming quickly</li>
 </ul>
-<div class="file">📄 hanwoo/render.py (L1–40)</div><pre><code class="language-python">&quot;&quot;&quot;4단계: 결과 동영상 렌더링 (ID 박스 + 이동궤적 + 실시간 미니 대시보드 패널).
+<div class="file">📄 hanwoo/render.py (L1–40)</div><pre><code class="language-python">&quot;&quot;&quot;Stage 4: render the result video (ID boxes + trails + live mini-dashboard panel).
 
-브라우저 재생 호환을 위해 ffmpeg 파이프로 H.264(yuv420p, faststart) 인코딩.
+Encoded to H.264 (yuv420p, faststart) through an ffmpeg pipe for browser playback.
 &quot;&quot;&quot;
 from __future__ import annotations
 
@@ -61,17 +61,17 @@ def render_video(video_path, act: pd.DataFrame, meta: dict, out_path, cfg: Pipel
            &quot;-pix_fmt&quot;, &quot;yuv420p&quot;, &quot;-movflags&quot;, &quot;+faststart&quot;, str(out_path)]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)</code></pre>
 
-<h2>2. 대시보드</h2>
-<p>영상마다 <code>outputs/&lt;영상&gt;/dashboard.html</code>, 전체 요약 <code>outputs/index.html</code> 이 생성됩니다. 서버 없이 더블클릭으로 열리는 단일 HTML 이고, 그래프는 Plotly.js 를 씁니다.</p>
-<table><tr><th>구성</th><th>보여주는 것</th></tr>
-<tr><td>KPI 카드</td><td>식별 개체 수, 영상 길이, 무리 총 이동거리, 평균 활동지수, 최고 활동 개체</td></tr>
-<tr><td>결과 영상</td><td>ID 부여 영상 재생</td></tr>
-<tr><td>개체별 이동거리 / 상태 비율</td><td>누가 많이 움직였나, 누가 주로 쉬었나</td></tr>
-<tr><td>시간대별 활동지수</td><td>5초 평균 활동지수의 개체별 추이</td></tr>
-<tr><td>이동 궤적</td><td>축사 배경 위에 개체별 궤적 — 선호 위치(사료조, 급수조) 파악</td></tr>
-<tr><td>요약표</td><td>summary.csv 내용</td></tr></table>
-<p><a href="../outputs/index.html">▶ 실제 대시보드 열기</a></p>
-<div class="file">📄 hanwoo/dashboard.py (L1–20)</div><pre><code class="language-python">&quot;&quot;&quot;5단계: 활동량 대시보드(HTML) 생성 - Plotly.js 사용, 영상별 1개 + 전체 요약 1개.&quot;&quot;&quot;
+<h2>2. Dashboard</h2>
+<p>For each video <code>outputs/&lt;video&gt;/dashboard.html</code> is generated, plus an overall summary <code>outputs/index.html</code>. Each is a single HTML file that opens with a double-click, no server required, and the charts use Plotly.js.</p>
+<table><tr><th>Component</th><th>What it shows</th></tr>
+<tr><td>KPI cards</td><td>Number of identified animals, video length, total herd distance, mean activity index, most active animal</td></tr>
+<tr><td>Result video</td><td>Playback of the video with IDs assigned</td></tr>
+<tr><td>Distance / state ratios per animal</td><td>Who moved the most, who mostly rested</td></tr>
+<tr><td>Activity index over time</td><td>Per-animal trend of the 5-second mean activity index</td></tr>
+<tr><td>Movement tracks</td><td>Per-animal tracks over the pen background — reveals preferred locations (feed bunk, water trough)</td></tr>
+<tr><td>Summary table</td><td>Contents of summary.csv</td></tr></table>
+<p><a href="../outputs/index.html">▶ Open the actual dashboard</a></p>
+<div class="file">📄 hanwoo/dashboard.py (L1–20)</div><pre><code class="language-python">&quot;&quot;&quot;Stage 5: activity dashboards (HTML) with Plotly.js - one per video plus one overall summary.&quot;&quot;&quot;
 from __future__ import annotations
 
 import json
@@ -86,14 +86,14 @@ PLOTLY = &quot;https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min
 CSS = &quot;&quot;&quot;
 :root{--bg:#f6f5f1;--card:#fff;--ink:#1f2328;--mut:#5c6370;--line:#e3e0d8;--acc:#b5562b}
 @media (prefers-color-scheme: dark){:root{--bg:#16171a;--card:#1f2125;--ink:#e8e6e1;--mut:#9aa0a8;--line:#30333a;--acc:#e08a5a}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:&quot;Pretendard&quot;,&quot;Noto Sans KR&quot;,&quot;Malgun Gothic&quot;,system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,&quot;Segoe UI&quot;,Roboto,sans-serif}
 header{padding:20px 24px;border-bottom:1px solid var(--line)}h1{margin:0;font-size:22px}header p{margin:4px 0 0;color:var(--mut);font-size:14px}
 main{max-width:1280px;margin:0 auto;padding:20px 16px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}.kpi b{display:block;font-size:26px;margin-top:4px}.kpi span{color:var(--mut);font-size:13px}</code></pre>
 
-<h2>3. 파이프라인 연결</h2>
-<div class="file">📄 hanwoo/pipeline.py</div><pre><code class="language-python">&quot;&quot;&quot;전체 파이프라인: 영상 1개 → outputs/&lt;name&gt;/ (영상, CSV, JSON, 대시보드).&quot;&quot;&quot;
+<h2>3. Connecting the pipeline</h2>
+<div class="file">📄 hanwoo/pipeline.py</div><pre><code class="language-python">&quot;&quot;&quot;Full pipeline: one video → outputs/&lt;name&gt;/ (video, CSV, JSON, dashboard).&quot;&quot;&quot;
 from __future__ import annotations
 
 import json
@@ -126,7 +126,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     print(f&quot;=== {name} ===&quot;)
     cache = out_dir / &quot;cache_track.npz&quot;
     if reuse and cache.exists():
-        # 검출·추적 결과 재사용 → 정합·활동량 파라미터만 빠르게 다시 튜닝할 때
+        # reuse detection/tracking results → for quickly retuning linking/activity parameters
         z = np.load(cache, allow_pickle=True)
         raw = pd.read_csv(out_dir / &quot;tracks_raw.csv&quot;)
         feats = {(int(f), int(t)): v for (f, t), v in zip(z[&quot;keys&quot;], z[&quot;vals&quot;].astype(np.float32))}
@@ -143,8 +143,8 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     fps = meta[&quot;fps&quot;]
     raw_ids = raw.tid.nunique()
 
-    raw = raw.assign(rtid=raw.tid)                 # 추적기 원본 id (ReID 임베딩 연결용)
-    # 검출 영역(ROI): 축사 밖·흐린 배경의 오검출 박스 제거 (configs/zones/&lt;영상&gt;.json)
+    raw = raw.assign(rtid=raw.tid)                 # original tracker id (links ReID embeddings)
+    # detection zones (ROI): drop false-positive boxes outside the barn / on blurry background (configs/zones/&lt;video&gt;.json)
     zpath = Path(cfg.zones_file) if cfg.zones_file else zones_path_for(video_path)
     zf = ZoneFilter(load_zones(zpath), meta[&quot;width&quot;], meta[&quot;height&quot;])
     n_zone = 0
@@ -163,7 +163,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     use_id = cfg.use_identity and Path(cfg.reid_weights).exists()
     id_stats, splits = None, []
     if use_id:
-        # (A) 고정 개체군: 짧은 끊김만 정합 → ReID 스왑 분리 → N 개 슬롯 배정
+        # (A) fixed herd: link short gaps only → ReID swap splitting → assign to N slots
         stitched, feats, links = stitch_tracklets(clean, feats, fps, cfg, persp, stages=(&quot;short&quot;,))
         emb_df, emb = load_or_extract_embeddings(video_path, raw, out_dir, cfg, reuse)
         embs = attach_embeddings(stitched, emb_df, emb)
@@ -172,7 +172,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
         stitched, id_stats, _ = assign_identities(stitched, embs, fps, persp, n_herd, cfg)
         print(f&quot;  identity: herd N={n_herd}, swaps split {len(splits)}, {id_stats}&quot;)
     else:
-        # (B) 기존: 2단계 tracklet 정합
+        # (B) legacy: two-stage tracklet linking
         stitched, feats, links = stitch_tracklets(clean, feats, fps, cfg, persp)
     final, mapping = relabel_and_interpolate(stitched.drop(columns=[&quot;rtid&quot;]), fps, cfg)
     act = compute_activity(final, fps, persp, cfg)
@@ -183,7 +183,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     act.round(4).to_csv(out_dir / &quot;tracks_activity.csv&quot;, index=False)
     summ.to_csv(out_dir / &quot;summary.csv&quot;, index=False)
 
-    # 배경 이미지 (대시보드 궤적용)
+    # background image (for dashboard trajectories)
     cap = cv2.VideoCapture(str(video_path))
     cap.set(cv2.CAP_PROP_POS_FRAMES, min(48, meta[&quot;n_frames&quot;] - 1))
     ok, bg = cap.read()
@@ -219,7 +219,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
 
 
 def load_or_extract_embeddings(video_path, raw, out_dir, cfg: PipelineConfig, reuse: bool):
-    &quot;&quot;&quot;ReID 임베딩 (reid_every 프레임마다) — outputs/&lt;name&gt;/cache_reid.npz 에 캐시.&quot;&quot;&quot;
+    &quot;&quot;&quot;ReID embeddings (every reid_every frames) - cached in outputs/&lt;name&gt;/cache_reid.npz.&quot;&quot;&quot;
     from .reid import extract_embeddings, load_reid
 
     cache = out_dir / &quot;cache_reid.npz&quot;
@@ -237,8 +237,8 @@ def load_or_extract_embeddings(video_path, raw, out_dir, cfg: PipelineConfig, re
     print(f&quot;  ReID embeddings {len(emb_df)} crops in {time.time() - t0:.0f}s&quot;)
     return emb_df, emb</code></pre>
 
-<div class="pager"><a href='08_activity.html'>← 활동량 측정 알고리즘</a><a class='nx' href='10_results.html'>전체 영상 실행과 결과 분석 →</a></div></main>
+<div class="pager"><a href='08_activity.html'>← Activity Measurement Algorithm</a><a class='nx' href='10_results.html'>Running All Videos and Analysing Results →</a></div></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
-b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='Copy';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/Copy$/,''));b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200)};p.appendChild(b)});</script>
 </body></html>

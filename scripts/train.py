@@ -1,7 +1,7 @@
-"""Student 모델(YOLO11s) 미세조정 학습.
+"""Fine-tune the student model (YOLO11s).
 
 usage: python scripts/train.py --epochs 60
-결과: models/hanwoo_yolo11s.pt  (runs/hanwoo/train/weights/best.pt 복사본)
+Output: models/hanwoo_yolo11s.pt  (copy of runs/hanwoo/train/weights/best.pt)
 """
 import argparse
 import shutil
@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default=str(ROOT / "data/hanwoo_ds/hanwoo.yaml"))
-    ap.add_argument("--model", default=str(ROOT / "models/yolo11s.pt"))  # COCO 사전학습 가중치에서 시작(전이학습)
+    ap.add_argument("--model", default=str(ROOT / "models/yolo11s.pt"))  # start from COCO-pretrained weights (transfer learning)
     ap.add_argument("--epochs", type=int, default=60)
     ap.add_argument("--imgsz", type=int, default=960)
     ap.add_argument("--batch", type=int, default=16)
@@ -27,7 +27,7 @@ def main():
         data=a.data, epochs=a.epochs, imgsz=a.imgsz, batch=a.batch, device=0, workers=4,
         project=str(ROOT / "runs/hanwoo"), name="train", exist_ok=True,
         patience=20, cos_lr=True, close_mosaic=10,
-        # 고정 카메라 축사 영상 특성에 맞춘 증강: 좌우반전 O, 상하반전 X, 밝기(HSV) 변화로 주야간 대응
+        # augmentation for fixed-camera barn video: horizontal flip yes, vertical flip no, brightness (HSV) changes for day/night
         fliplr=0.5, flipud=0.0, hsv_v=0.4, degrees=0.0, scale=0.4, mosaic=1.0, mixup=0.0,
         plots=True,
     )

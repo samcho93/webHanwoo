@@ -1,4 +1,4 @@
-# 배치 파일은 CP949 + CRLF 그대로 보존 (줄바꿈 변환 금지)
+# Keep batch files byte-for-byte with CRLF (no line-ending conversion)
 *.bat -text
 *.mp4 binary
 *.jpg binary

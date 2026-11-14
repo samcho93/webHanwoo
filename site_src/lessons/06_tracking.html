@@ -1,38 +1,38 @@
-<p class="lead">검출기는 프레임마다 “소가 어디에 있는지” 만 알려 줍니다. “이 소가 아까 그 소인지” 를 판단해 같은 ID 를 이어 주는 것이 <b>다중 객체 추적(MOT, Multi-Object Tracking)</b> 입니다.</p>
+<p class="lead">A detector only tells us, frame by frame, “where the cattle are”. Deciding “is this the same animal as before?” and carrying the same ID forward is the job of <b>multi-object tracking (MOT)</b>.</p>
 
-<h2>1. Tracking-by-Detection 의 3요소</h2>
-<div class="flow"><div>① 예측<br><small>Kalman 필터</small></div><i>→</i><div>② 비용 계산<br><small>IoU · 외형(ReID)</small></div><i>→</i><div>③ 할당<br><small>Hungarian 알고리즘</small></div><i>→</i><div>④ 트랙 관리<br><small>생성 · 유지 · 삭제</small></div></div>
-<h3>① Kalman 필터 — 다음 위치 예측</h3>
-<p>각 트랙의 상태 <code>[x, y, w, h, vx, vy, vw, vh]</code> 를 등속 모델로 다음 프레임에 예측하고, 실제 검출로 보정합니다. 잠깐 가려져도 예측 위치가 있으므로 다시 나타났을 때 연결할 수 있습니다.</p>
-<h3>② 비용 — 얼마나 같은 소 같은가</h3>
-<ul><li><b>IoU 거리</b> = 1 − (예측 박스 ∩ 검출 박스) / (합집합). 느리게 움직이는 소에게 매우 강력.</li>
-<li><b>외형(ReID) 거리</b>: 박스 안 이미지의 특징 벡터 코사인 거리. 소들이 교차할 때 뒤바뀜을 막음.</li></ul>
-<h3>③ Hungarian 알고리즘 — 전체 비용이 최소가 되는 1:1 짝짓기</h3>
+<h2>1. The three ingredients of tracking-by-detection</h2>
+<div class="flow"><div>① Predict<br><small>Kalman filter</small></div><i>→</i><div>② Compute cost<br><small>IoU · appearance (ReID)</small></div><i>→</i><div>③ Assign<br><small>Hungarian algorithm</small></div><i>→</i><div>④ Track management<br><small>create · keep · delete</small></div></div>
+<h3>① Kalman filter — predicting the next position</h3>
+<p>Each track's state <code>[x, y, w, h, vx, vy, vw, vh]</code> is predicted into the next frame with a constant-velocity model and then corrected by the actual detection. Because a predicted position exists even during a brief occlusion, the track can be reconnected when the animal reappears.</p>
+<h3>② Cost — how likely is it the same animal?</h3>
+<ul><li><b>IoU distance</b> = 1 − (predicted box ∩ detected box) / (union). Very powerful for slow-moving cattle.</li>
+<li><b>Appearance (ReID) distance</b>: cosine distance between feature vectors of the image inside each box. Prevents swaps when cattle cross paths.</li></ul>
+<h3>③ Hungarian algorithm — the 1:1 matching with minimal total cost</h3>
 <pre><code class="language-python">from scipy.optimize import linear_sum_assignment
 import numpy as np
-#            검출A  검출B  검출C
-C = np.array([[0.1,  0.9,  0.8],   # 트랙1
-              [0.8,  0.2,  0.9],   # 트랙2
-              [0.9,  0.7,  0.3]])  # 트랙3
-rows, cols = linear_sum_assignment(C)   # → (0,0), (1,1), (2,2) 총비용 0.6</code></pre>
-<p>“가장 가까운 것끼리” 탐욕적으로 짝지으면 꼬일 수 있지만, Hungarian 은 <b>전체 합</b>이 최소인 해를 보장합니다. 이 알고리즘은 다음 레슨의 오프라인 정합에서도 다시 씁니다.</p>
+#            det A  det B  det C
+C = np.array([[0.1,  0.9,  0.8],   # track 1
+              [0.8,  0.2,  0.9],   # track 2
+              [0.9,  0.7,  0.3]])  # track 3
+rows, cols = linear_sum_assignment(C)   # → (0,0), (1,1), (2,2) total cost 0.6</code></pre>
+<p>Greedily pairing “the closest ones first” can lead to tangles, but the Hungarian algorithm guarantees the solution with the minimal <b>total sum</b>. We will use this algorithm again for offline stitching in the next lesson.</p>
 
-<h2>2. ByteTrack 과 BoT-SORT</h2>
+<h2>2. ByteTrack and BoT-SORT</h2>
 <table><tr><th></th><th>ByteTrack</th><th>BoT-SORT</th></tr>
-<tr><td>핵심 아이디어</td><td>낮은 신뢰도 검출도 버리지 않고 <b>2단계 매칭</b>에 사용 → 가려진 소 유지</td><td>ByteTrack + <b>ReID 외형</b> + 카메라 움직임 보정(GMC)</td></tr>
-<tr><td>장점</td><td>빠르고 단순</td><td>교차·가림 후 ID 유지가 더 강함</td></tr>
-<tr><td>이 축사에서</td><td>소가 교차하면 ID 가 바뀌기 쉬움</td><td>고정 카메라이므로 GMC 는 끄고 ReID 를 켬</td></tr></table>
+<tr><td>Key idea</td><td>Doesn't discard low-confidence detections but uses them in a <b>second matching stage</b> → keeps occluded cattle</td><td>ByteTrack + <b>ReID appearance</b> + camera motion compensation (GMC)</td></tr>
+<tr><td>Strengths</td><td>Fast and simple</td><td>Better at keeping IDs after crossings and occlusion</td></tr>
+<tr><td>In this barn</td><td>IDs switch easily when cattle cross</td><td>Fixed camera, so we turn GMC off and turn ReID on</td></tr></table>
 
-<h2>3. 축사용 BoT-SORT 설정</h2>
+<h2>3. BoT-SORT settings for the barn</h2>
 <!--CODE:configs/hanwoo_botsort.yaml-->
-<p><code>with_reid: True, model: auto</code> 는 별도 ReID 모델 없이 <b>YOLO 검출기 내부 특징</b>을 외형 임베딩으로 재사용합니다. 우리가 미세조정한 검출기는 한우 외형을 이미 학습했으므로 추가 비용 없이 쓸 만한 외형 특징이 됩니다.</p>
+<p><code>with_reid: True, model: auto</code> reuses the <b>internal features of the YOLO detector</b> as appearance embeddings, without a separate ReID model. Our fine-tuned detector has already learned what Hanwoo look like, so these become usable appearance features at no extra cost.</p>
 
-<h2>4. 검출 + 추적 + 특징 수집 코드</h2>
-<p>Ultralytics 의 <code>model.track(frame, persist=True)</code> 를 프레임마다 호출하면 내부에 추적기 상태가 유지됩니다. 동시에, 이후 단계에서 쓸 <b>외형 히스토그램</b>과 <b>motion energy(프레임 차)</b> 를 수집합니다.</p>
+<h2>4. Detection + tracking + feature collection code</h2>
+<p>Calling Ultralytics' <code>model.track(frame, persist=True)</code> on every frame keeps the tracker state internally. At the same time, we collect the <b>appearance histograms</b> and <b>motion energy (frame difference)</b> used in later stages.</p>
 <!--CODE:hanwoo/detect_track.py-->
 
-<h2>5. 어떤 추적기가 최적인가 — 비교 실험</h2>
-<p>정답 ID 라벨이 없으므로 대리 지표로 비교합니다 (<code>scripts/compare_trackers.py</code>). <b>ID/두수 비율</b>이 1.0 에 가까울수록, <b>전체지속 ID</b>(영상의 90% 이상 유지된 ID)가 두수에 가까울수록 좋습니다.</p>
+<h2>5. Which tracker is best? — a comparison experiment</h2>
+<p>We have no ground-truth ID labels, so we compare with proxy metrics (<code>scripts/compare_trackers.py</code>). The closer the <b>ID/herd-size ratio</b> is to 1.0, and the closer the number of <b>full-length IDs</b> (IDs kept for at least 90% of the video) is to the herd size, the better.</p>
 <pre><code class="language-bash">python scripts/compare_trackers.py E:/Video/cow/cow09.mp4 E:/Video/cow/cow04.mp4</code></pre>
 <!--TRACKER_COMPARE-->
-<p>온라인 추적기만으로는 가림 때문에 ID 가 두수보다 훨씬 많이 생깁니다. 다음 레슨의 <b>오프라인 정합</b>이 이를 크게 줄입니다.</p>
+<p>With an online tracker alone, occlusion produces far more IDs than there are animals. The <b>offline stitching</b> in the next lesson reduces this substantially.</p>

@@ -1,32 +1,32 @@
-<p class="lead">YOLO(You Only Look Once)는 이미지 한 장을 한 번만 신경망에 통과시켜 모든 물체의 위치(bounding box)와 종류, 신뢰도(confidence)를 동시에 예측합니다. COCO 데이터셋(80종)으로 사전학습된 모델에는 이미 <code>cow</code>(19번) 클래스가 있으므로 먼저 그대로 써 봅니다.</p>
+<p class="lead">YOLO (You Only Look Once) passes an image through the neural network just once and simultaneously predicts the location (bounding box), class and confidence of every object. A model pretrained on the COCO dataset (80 classes) already has a <code>cow</code> class (index 19), so let's first try it as-is.</p>
 
-<h2>1. 사전학습 모델로 검출하기</h2>
+<h2>1. Detection with a pretrained model</h2>
 <pre><code class="language-python">from ultralytics import YOLO
 
 model = YOLO("models/yolo11s.pt")
 r = model.predict("c08.jpg", imgsz=960, conf=0.1,
                   classes=[16, 17, 18, 19],   # dog, horse, sheep, cow
-                  agnostic_nms=True)[0]      # 클래스가 달라도 겹치는 박스는 하나만
+                  agnostic_nms=True)[0]      # keep only one box per overlap, even across classes
 print(r.boxes.conf, r.boxes.cls)
 cv2.imwrite("det.jpg", r.plot())</code></pre>
 <ul>
-<li><code>imgsz=960</code>: 원본(854px)보다 약간 크게 → 뒤쪽의 작은 소 검출에 유리</li>
-<li><code>classes</code>: 소가 말·양으로 잘못 분류되는 경우까지 보려고 동물 클래스를 같이 봄</li>
-<li><code>agnostic_nms</code>: 같은 소에 ‘cow’ 박스와 ‘horse’ 박스가 겹쳐 나오는 것 방지</li>
+<li><code>imgsz=960</code>: slightly larger than the original (854px) → helps detect small cattle at the back</li>
+<li><code>classes</code>: we include other animal classes to catch cattle misclassified as horses or sheep</li>
+<li><code>agnostic_nms</code>: prevents a ‘cow’ box and a ‘horse’ box from overlapping on the same animal</li>
 </ul>
 
-<h2>2. 작은 모델 vs 큰 모델</h2>
+<h2>2. Small model vs. large model</h2>
 <div class="two">
-<figure><img src="assets/img/det_yolo11s.jpg"><figcaption>YOLO11s (빠름) — 많은 소가 신뢰도 0.1~0.5</figcaption></figure>
-<figure><img src="assets/img/det_yolo11x.jpg"><figcaption>YOLO11x + TTA (느림) — 대부분 0.7~0.9, 그러나 곤포를 ‘sheep’ 으로 오검출</figcaption></figure>
+<figure><img src="assets/img/det_yolo11s.jpg"><figcaption>YOLO11s (fast) — many cattle at confidence 0.1–0.5</figcaption></figure>
+<figure><img src="assets/img/det_yolo11x.jpg"><figcaption>YOLO11x + TTA (slow) — mostly 0.7–0.9, but bales are falsely detected as ‘sheep’</figcaption></figure>
 </div>
 <table><tr><th></th><th>YOLO11s (960)</th><th>YOLO11x + TTA (1280)</th></tr>
-<tr><td>정확도</td><td>뒤쪽·가려진 소 신뢰도 낮음 → 추적 시 자주 놓침</td><td>높음</td></tr>
-<tr><td>오검출</td><td>적음</td><td>흰 곤포 → sheep (0.1~0.25)</td></tr>
-<tr><td>속도 (TITAN RTX)</td><td>프레임당 수 ms</td><td>수십 ms (TTA 로 3배 추론)</td></tr></table>
+<tr><td>Accuracy</td><td>Low confidence for distant or occluded cattle → often lost during tracking</td><td>High</td></tr>
+<tr><td>False positives</td><td>Few</td><td>White bales → sheep (0.1–0.25)</td></tr>
+<tr><td>Speed (TITAN RTX)</td><td>A few ms per frame</td><td>Tens of ms (TTA runs inference 3 times)</td></tr></table>
 
-<h2>3. 결론: 학습이 필요하다</h2>
-<p>추적은 <b>매 프레임</b> 검출이 필요하므로 빠른 모델이 필요하지만, 빠른 모델은 이 축사 환경에서 신뢰도가 낮습니다. 그렇다고 사람이 수천 장에 박스를 그리는 것은 비용이 큽니다. 그래서 다음 전략을 씁니다:</p>
-<div class="flow"><div>큰 모델(teacher)<br><small>느리지만 정확</small></div><i>→ 자동 라벨 →</i><div>축사 데이터셋</div><i>→ 미세조정 →</i><div>작은 모델(student)<br><small>빠르고, 축사에 특화</small></div></div>
-<p>이를 <b>Pseudo-labeling</b> 또는 <b>지식 증류(Knowledge Distillation)</b> 라 합니다. 추가로 클래스를 <code>hanwoo</code> 하나로 통일하므로 소/말 혼동과 곤포 오검출 문제도 함께 사라집니다.</p>
-<div class="note">COCO 클래스 번호: 16 dog, 17 horse, 18 sheep, 19 cow. 실제 시험 결과 sheep 은 대부분 곤포 오검출이었으므로 이후 단계에서는 <b>cow(19)와 horse(17)</b> 만 소 후보로 사용합니다.</div>
+<h2>3. Conclusion: we need training</h2>
+<p>Tracking needs detection on <b>every frame</b>, so we need a fast model, but the fast model has low confidence in this barn environment. On the other hand, having people draw boxes on thousands of images is expensive. So we use this strategy:</p>
+<div class="flow"><div>Large model (teacher)<br><small>slow but accurate</small></div><i>→ auto-labels →</i><div>Barn dataset</div><i>→ fine-tuning →</i><div>Small model (student)<br><small>fast and barn-specific</small></div></div>
+<p>This is called <b>pseudo-labeling</b> or <b>knowledge distillation</b>. Because we also merge everything into a single <code>hanwoo</code> class, the cow/horse confusion and the bale false positives disappear as well.</p>
+<div class="note">COCO class indices: 16 dog, 17 horse, 18 sheep, 19 cow. In our tests, ‘sheep’ detections were almost always false positives on bales, so from here on only <b>cow (19) and horse (17)</b> are used as cattle candidates.</div>

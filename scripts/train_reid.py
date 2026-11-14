@@ -1,18 +1,18 @@
-"""한우 ReID 모델 학습 (자기지도: 추적 결과 → 라벨).
+"""Train the Hanwoo ReID model (self-supervised: tracking results → labels).
 
-배치 구성 (P×K 샘플링, '같은 영상 + 동시 존재' 제약)
-  - 한 배치는 한 영상에서만 뽑는다 → 다른 영상의 같은 소가 negative 로 들어가는 오류 방지
-  - mode "tracklet"(긴 영상): 임의 시각 t 에 '동시에 존재하는' tracklet 들만 P 개 선택
-        → 같은 순간에 화면에 함께 있으므로 반드시 서로 다른 소
-  - 각 ID 에서 K 장 crop (시간적으로 떨어진 장면을 섞어 자세 변화 학습)
-손실: Supervised Contrastive (온도 0.1) + Batch-hard Triplet (margin 0.3)
+Batch construction (P×K sampling, 'same video + coexisting' constraint)
+  - each batch comes from a single video → avoids the same cow from another video becoming a negative
+  - mode "tracklet" (long videos): pick P tracklets that coexist at a random time t
+        → they are on screen together at that instant, so they must be different cows
+  - K crops per ID (mixing temporally distant scenes to learn pose changes)
+Loss: Supervised Contrastive (temperature 0.1) + batch-hard triplet (margin 0.3)
 
-평가 (검증 영상 cow02, cow09 — 학습에서 제외)
-  각 ID 의 '앞 절반' 평균 임베딩을 갤러리로, '뒤 절반'의 2초 구간 평균 임베딩을 질의로 →
-  같은 영상의 N 마리 중 올바른 소를 1순위로 찾는 비율 (Rank-1). HSV 히스토그램 / ImageNet 특징과 비교.
+Evaluation (validation videos cow02, cow09 - excluded from training)
+  Gallery = mean embedding of the first half of each ID; query = mean embedding of 2 s windows in the second half →
+  share of queries whose top-1 match among the N cows of the same video is correct (Rank-1). Compared with HSV histograms / ImageNet features.
 
-사용:  python scripts/train_reid.py --iters 4000
-       python scripts/train_reid.py --iters 4000 --all     # 검증 영상까지 포함한 최종 모델
+Usage:  python scripts/train_reid.py --iters 4000
+       python scripts/train_reid.py --iters 4000 --all     # final model including the validation videos
 """
 import argparse
 import json
@@ -32,7 +32,7 @@ from hanwoo.reid import CROP, CowReID, embed_crops, to_tensor  # noqa: E402
 VAL = ["cow02", "cow09"]
 
 
-# --------------------------------------------------------------------------- 데이터
+# --------------------------------------------------------------------------- data
 class Video:
     def __init__(self, path: Path):
         z = np.load(path)
@@ -64,15 +64,15 @@ def augment(imgs: np.ndarray, rng) -> np.ndarray:
     for i, im in enumerate(imgs):
         if rng.random() < 0.5:
             im = im[:, ::-1]
-        # 약한 스케일·이동
+        # mild scale / shift
         s = rng.uniform(0.85, 1.1)
         tx, ty = rng.uniform(-0.08, 0.08, 2) * CROP
         M = np.array([[s, 0, (1 - s) * CROP / 2 + tx], [0, s, (1 - s) * CROP / 2 + ty]], np.float32)
         im = cv2.warpAffine(np.ascontiguousarray(im), M, (CROP, CROP), borderValue=(114, 114, 114))
-        # 밝기·대비 (색상(hue)은 개체 단서이므로 바꾸지 않음)
+        # brightness / contrast (hue is an identity cue, so it is left unchanged)
         a, b = rng.uniform(0.75, 1.25), rng.uniform(-20, 20)
         im = np.clip(im.astype(np.float32) * a + b, 0, 255).astype(np.uint8)
-        # random erasing: 펜스·다른 소에 의한 가림 모사
+        # random erasing: simulates occlusion by fences / other cows
         if rng.random() < 0.5:
             eh, ew = int(CROP * rng.uniform(0.15, 0.4)), int(CROP * rng.uniform(0.15, 0.4))
             y, x = rng.integers(0, CROP - eh), rng.integers(0, CROP - ew)
@@ -81,7 +81,7 @@ def augment(imgs: np.ndarray, rng) -> np.ndarray:
     return out
 
 
-# --------------------------------------------------------------------------- 손실
+# --------------------------------------------------------------------------- loss
 def supcon(z, y, temp=0.1):
     sim = z @ z.T / temp
     n = len(y)
@@ -100,19 +100,19 @@ def triplet_hard(z, y, margin=0.3):
     return F.relu(hp - hn + margin).mean()
 
 
-# --------------------------------------------------------------------------- 평가
+# --------------------------------------------------------------------------- evaluation
 def hsv_feat(imgs):
     out = []
     for im in imgs:
         c = im[CROP // 5:-CROP // 5, CROP // 5:-CROP // 5]
         hsv = cv2.cvtColor(c, cv2.COLOR_BGR2HSV)
         h = cv2.calcHist([hsv], [0, 1], None, [16, 8], [0, 180, 0, 256]).flatten()
-        out.append(np.sqrt(h / max(h.sum(), 1)))  # Hellinger 매핑 → 코사인이 Bhattacharyya 와 동치
+        out.append(np.sqrt(h / max(h.sum(), 1)))  # Hellinger mapping → cosine equals Bhattacharyya
     return np.array(out, np.float32)
 
 
 def rank1(feat, label, frame, fps=24.0, win_s=2.0):
-    """앞 절반 평균(갤러리) vs 뒤 절반 2초 구간 평균(질의) → Rank-1, 단일 crop Rank-1"""
+    """First-half mean (gallery) vs second-half 2 s window mean (query) → Rank-1, single-crop Rank-1"""
     mid = np.median(frame)
     ids = [l for l in np.unique(label) if ((label == l) & (frame < mid)).sum() >= 3 and ((label == l) & (frame >= mid)).sum() >= 3]
     G = np.stack([feat[(label == l) & (frame < mid)].mean(0) for l in ids])
@@ -166,9 +166,9 @@ def main():
     ap.add_argument("--iters", type=int, default=4000)
     ap.add_argument("--P", type=int, default=12)
     ap.add_argument("--K", type=int, default=4)
-    ap.add_argument("--lr", type=float, default=1e-3, help="헤드(BN+FC) 학습률")
-    ap.add_argument("--lr-backbone", type=float, default=5e-5, help="사전학습 백본 학습률 (작게: 특징 붕괴 방지)")
-    ap.add_argument("--all", action="store_true", help="검증 영상까지 학습에 포함 (최종 배포 모델)")
+    ap.add_argument("--lr", type=float, default=1e-3, help="learning rate of the head (BN+FC)")
+    ap.add_argument("--lr-backbone", type=float, default=5e-5, help="learning rate of the pretrained backbone (small: avoids feature collapse)")
+    ap.add_argument("--all", action="store_true", help="include validation videos in training (final release model)")
     ap.add_argument("--out", default=str(MODELS_DIR / "hanwoo_reid.pt"))
     a = ap.parse_args()
     dev = "cuda"
@@ -179,7 +179,7 @@ def main():
     val = [v for v in vids if v.name in VAL]
     train = vids if a.all else [v for v in vids if v.name not in VAL]
     print("train:", [(v.name, v.mode, len(v.ids)) for v in train])
-    # 샘플링 가중치: crop 수에 비례 (긴 영상이 너무 지배하지 않도록 제곱근)
+    # sampling weights: proportional to crop count (square root so long videos don't dominate)
     w = np.sqrt([len(v.label) for v in train]); w /= w.sum()
 
     log = dict(baseline_imagenet=imagenet_baseline(val, dev), curve=[])

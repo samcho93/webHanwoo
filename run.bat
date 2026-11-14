@@ -6,17 +6,17 @@ set "PORT=8791"
 set "DEFAULT_SRC=E:\Video\cow"
 
 if not exist "%PY%" (
-  echo [오류] 가상환경이 없습니다. 먼저 setup.bat 을 실행하세요.
+  echo [ERROR] Virtual environment not found. Run setup.bat first.
   pause
   exit /b 1
 )
 
-rem ---- 인자 실행 (메뉴 없이)
-rem   run.bat all   [폴더/파일] [마릿수]
-rem   run.bat reuse [폴더/파일] [마릿수]
+rem ---- Run with arguments (no menu)
+rem   run.bat all   [folder/file] [herd size]
+rem   run.bat reuse [folder/file] [herd size]
 rem   run.bat serve
 rem   run.bat build
-rem   run.bat live  [파일 또는 rtsp://주소]
+rem   run.bat live  [file or rtsp://address]
 set "MODE=%~1"
 if /i "%MODE%"=="all" goto arg_run
 if /i "%MODE%"=="reuse" goto arg_run
@@ -28,19 +28,19 @@ set EMPTY=0
 :menu
 cls
 echo ==============================================================
-echo    한우 개체 추적 / 활동량 측정  (webHanwoo)
+echo    Hanwoo individual tracking / activity measurement  (webHanwoo)
 echo ==============================================================
-echo    1. 폴더의 모든 영상 처리   (검출 + 추적 + ReID + 활동량)
-echo    2. 영상 1개 처리
-echo    3. 빠른 재계산 (--reuse)   검출/추적 캐시 재사용
-echo    4. 결과 요약 / 강좌 사이트 열기  (http://localhost:%PORT%)
-echo    5. ID 콘택트 시트 만들기   (ID 유지 확인용)
-echo    6. 강좌 사이트 다시 빌드
-echo    7. 실시간 추적 프로그램  (파일 / RTSP 카메라, 파라미터 튜닝)
-echo    0. 종료
+echo    1. Process all videos in a folder  (detection + tracking + ReID + activity)
+echo    2. Process a single video
+echo    3. Quick recompute (--reuse)  reuse detection/tracking cache
+echo    4. Open result summary / course site  (http://localhost:%PORT%)
+echo    5. Make ID contact sheet  (check ID consistency)
+echo    6. Rebuild course site
+echo    7. Real-time tracking app  (file / RTSP camera, parameter tuning)
+echo    0. Exit
 echo ==============================================================
 set "SEL="
-set /p "SEL=번호 선택: "
+set /p "SEL=Select a number: "
 if not defined SEL (
   set /a EMPTY+=1
   if !EMPTY! geq 3 exit /b 0
@@ -59,21 +59,21 @@ goto menu
 
 :ask_herd
 set "HERD="
-set /p "HERD=축사 마릿수 N (모르면 Enter = 자동 추정): "
+set /p "HERD=Herd size N (Enter = estimate automatically): "
 set "EXTRA="
 if defined HERD set "EXTRA=--herd-size %HERD%"
 exit /b 0
 
 :folder
 set "SRC=%DEFAULT_SRC%"
-set /p "SRC=영상 폴더 [Enter = %DEFAULT_SRC%]: "
+set /p "SRC=Video folder [Enter = %DEFAULT_SRC%]: "
 call :ask_herd
 "%PY%" run_activity.py "%SRC%" %EXTRA%
 goto done
 
 :single
 set "SRC="
-set /p "SRC=영상 파일 경로 (예: E:\Video\cow\cow03.mp4): "
+set /p "SRC=Video file path (e.g. E:\Video\cow\cow03.mp4): "
 if not defined SRC goto menu
 call :ask_herd
 "%PY%" run_activity.py "%SRC%" %EXTRA%
@@ -81,13 +81,13 @@ goto done
 
 :reuse
 set "SRC=%DEFAULT_SRC%"
-set /p "SRC=영상 폴더 또는 파일 [Enter = %DEFAULT_SRC%]: "
+set /p "SRC=Video folder or file [Enter = %DEFAULT_SRC%]: "
 call :ask_herd
 "%PY%" run_activity.py "%SRC%" --reuse %EXTRA%
 goto done
 
 :serve
-echo 웹서버를 새 창에서 시작합니다. (그 창을 닫으면 서버 종료)
+echo Starting the web server in a new window. (Close that window to stop the server)
 start "webHanwoo server" cmd /k ""%PY%" -m http.server %PORT%"
 timeout /t 2 >nul
 start "" "http://localhost:%PORT%/outputs/index.html"
@@ -96,7 +96,7 @@ goto menu
 
 :sheet
 set "V=cow03"
-set /p "V=영상 이름 [Enter = cow03]: "
+set /p "V=Video name [Enter = cow03]: "
 "%PY%" scripts\identity_sheet.py "outputs\%V%"
 if exist "outputs\%V%\identity_sheet.jpg" start "" "outputs\%V%\identity_sheet.jpg"
 goto done
@@ -106,13 +106,13 @@ goto done
 goto done
 
 :live
-echo 실시간 추적 프로그램을 실행합니다. (창을 닫으면 메뉴로 돌아옴)
+echo Starting the real-time tracking app. (Close its window to return to the menu)
 "%PY%" live_app.py
 goto menu
 
 :done
 echo.
-echo 완료. 결과 폴더: %~dp0outputs
+echo Done. Output folder: %~dp0outputs
 pause
 goto menu
 

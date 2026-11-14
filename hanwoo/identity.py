@@ -1,16 +1,16 @@
-"""3단계(고정 개체군): 축사 소 마릿수 N 이 고정되어 있다는 조건을 이용한 ID 유지.
+"""Stage 3 (fixed herd): keep IDs stable using the constraint that the barn holds a fixed number N of cows.
 
-온라인 추적 + 짧은 끊김 정합 뒤에도 남는 tracklet 들을, 정확히 N 개의 '개체 슬롯' 에 배정한다.
+Tracklets left after online tracking + short-gap linking are assigned to exactly N 'animal slots'.
 
-  제약  : 한 개체는 같은 시각에 두 곳에 있을 수 없다 → 시간이 겹치는 tracklet 은 같은 ID 불가
-  비용  : 외형(ReID 임베딩 코사인 거리) + 움직임(이전/다음 위치에서 공백 시간 동안 이동 가능한 거리인가)
-  절차  :
-    1) ID 스왑 분리 — 한 tracklet 안에서 다른 소와 겹친 직후 외형 임베딩이 급변하면 그 지점에서 자른다
-    2) 마릿수 N 추정 — 동시 검출 수가 N 이상인 프레임이 1% 이상인 최대 N (또는 사용자 지정)
-    3) 탐욕 배정 — 긴(신뢰도 높은) tracklet 부터, 시간이 겹치지 않는 개체 슬롯 중 최소 비용 슬롯에 배정
-                   (어느 슬롯에도 못 들어가고 슬롯 수 < N 이면 새 개체)
-    4) 반복 개선(ICM) — 짧은 tracklet 부터 하나씩 빼서 '현재 나머지 배정' 기준 최적 슬롯으로 재배정, 수렴까지
-  N 개 슬롯 어디에도 넣을 수 없는 tracklet(동시 검출이 N 초과: 중복 박스·오검출)은 제외하고 비율을 보고한다.
+  Constraint: one animal cannot be in two places at once → tracklets overlapping in time cannot share an ID
+  Cost      : appearance (ReID embedding cosine distance) + motion (is the distance reachable from the previous/next position within the gap?)
+  Procedure :
+    1) ID-swap splitting - cut a tracklet where its appearance embedding changes abruptly right after overlapping another cow
+    2) Herd-size estimate - the largest N such that >= 1% of frames have N or more simultaneous detections (or user-specified)
+    3) Greedy assignment - longest (most reliable) tracklets first, into the lowest-cost slot with no time overlap
+                   (if it fits no slot and slots < N, it starts a new animal)
+    4) Iterative refinement (ICM) - remove tracklets one at a time, shortest first, and reassign each to the best slot given the rest, until convergence
+  Tracklets that fit none of the N slots (more than N simultaneous detections: duplicate boxes / false positives) are dropped and their share is reported.
 """
 from __future__ import annotations
 
@@ -21,12 +21,12 @@ from .config import PipelineConfig
 from .stitching import body_px
 
 
-# --------------------------------------------------------------------------- 임베딩 결합
+# --------------------------------------------------------------------------- embedding attachment
 def attach_embeddings(df: pd.DataFrame, emb_df: pd.DataFrame, emb: np.ndarray):
-    """df(frame, tid, rtid) 의 각 tracklet 에 ReID 임베딩 시계열을 붙인다.
+    """Attach a ReID embedding time series to each tracklet of df(frame, tid, rtid).
 
-    emb_df: frame, tid(=추적기 원본 id), conf, occ  /  emb: 같은 순서의 임베딩
-    반환: {tid: dict(frame, emb, w)}  (w = 품질 가중치: 겹침이 큰 crop 은 0)
+    emb_df: frame, tid (= original tracker id), conf, occ  /  emb: embeddings in the same order
+    Returns: {tid: dict(frame, emb, w)}  (w = quality weight: 0 for heavily overlapped crops)
     """
     e = emb_df.rename(columns={"tid": "rtid"}).reset_index().rename(columns={"index": "row"})
     m = df[["frame", "rtid", "tid"]].merge(e, on=["frame", "rtid"], how="inner")
@@ -49,9 +49,9 @@ def _mean_emb(E, w=None):
     return v / n if n > 0 else None
 
 
-# --------------------------------------------------------------------------- 1) 스왑 분리
+# --------------------------------------------------------------------------- 1) swap splitting
 def split_swaps(df: pd.DataFrame, embs: dict, fps: float, cfg: PipelineConfig):
-    """다른 소와 겹친(occ≥0.2) 순간 전후 window 초의 평균 임베딩이 다르면 tracklet 을 분리."""
+    """Split a tracklet when the mean embeddings in the window seconds before/after an overlap with another cow (occ>=0.2) differ."""
     W = int(cfg.split_window_s * fps)
     df = df.copy()
     next_id = int(df.tid.max()) + 1
@@ -75,7 +75,7 @@ def split_swaps(df: pd.DataFrame, embs: dict, fps: float, cfg: PipelineConfig):
                 best, best_sim = t, sim
         if best is None or best_sim >= cfg.split_sim_thr:
             continue
-        # 분리: best 이후 프레임에 새 id 부여
+        # split: assign a new id to frames after best
         m = (df.tid == tid) & (df.frame > best)
         df.loc[m, "tid"] = next_id
         k = fr > best
@@ -87,7 +87,7 @@ def split_swaps(df: pd.DataFrame, embs: dict, fps: float, cfg: PipelineConfig):
     return df, embs, log
 
 
-# --------------------------------------------------------------------------- 2) 마릿수 추정
+# --------------------------------------------------------------------------- 2) herd-size estimate
 def estimate_herd_size(raw: pd.DataFrame, n_frames: int, min_frac: float = 0.01, conf: float = 0.4) -> int:
     cnt = raw[raw.conf >= conf].groupby("frame").size().reindex(range(n_frames), fill_value=0).to_numpy()
     for k in range(int(cnt.max()), 0, -1):
@@ -96,7 +96,7 @@ def estimate_herd_size(raw: pd.DataFrame, n_frames: int, min_frac: float = 0.01,
     return int(cnt.max())
 
 
-# --------------------------------------------------------------------------- 3,4) 배정
+# --------------------------------------------------------------------------- 3,4) assignment
 class _Slot:
     def __init__(self):
         self.members: list[int] = []
@@ -128,17 +128,17 @@ def _slot_proto(slot, T, exclude=None):
 
 
 def _cost(t, slot, T, fps, persp, cfg, tol, exclude=None):
-    """tracklet t 를 slot 에 넣는 비용. 불가능하면 None."""
+    """Cost of putting tracklet t into slot. None if impossible."""
     s = T[t]
     prev = nxt = None
     for a, b, m in slot.intervals(T, exclude):
-        if a <= s["end"] - tol and b >= s["start"] + tol:   # 시간 겹침 → 불가
+        if a <= s["end"] - tol and b >= s["start"] + tol:   # overlaps in time → impossible
             return None
         if b < s["start"] + tol and (prev is None or b > T[prev]["end"]):
             prev = m
         if a > s["end"] - tol and (nxt is None or a < T[nxt]["start"]):
             nxt = m
-    # 움직임 비용: 이전 끝 → t 시작, t 끝 → 다음 시작
+    # motion cost: previous end → t start, t end → next start
     c_mot, n_mot, gaps = 0.0, 0, []
     for p, q in ((prev, t), (t, nxt)):
         if p is None or q is None:
@@ -152,7 +152,7 @@ def _cost(t, slot, T, fps, persp, cfg, tol, exclude=None):
         c_mot += min(d_bl / allowed, cfg.id_gate); n_mot += 1
         gaps.append(gap_s)
     c_mot = c_mot / n_mot if n_mot else 0.5
-    # 외형 비용: 시간상 이웃 tracklet(국소) + 슬롯 전체 평균(전역)
+    # appearance cost: temporally neighbouring tracklets (local) + slot-wide mean (global)
     if s["emb"] is None:
         c_app = 0.5
     else:
@@ -183,16 +183,16 @@ def assign_identities(df: pd.DataFrame, embs: dict, fps: float, persp, n_herd: i
                 best, bc = k, c
         return best, bc
 
-    # 3) 탐욕 배정 (긴 tracklet 부터)
+    # 3) greedy assignment (longest tracklets first)
     for t in order:
         k, c = best_slot(t)
         if k is not None and (c < cfg.id_new_cost or len(slots) >= n_herd):
             slots[k].members.append(t); where[t] = k
         elif len(slots) < n_herd:
             slots.append(_Slot()); slots[-1].members.append(t); where[t] = len(slots) - 1
-        # else: 미배정 (N 초과 동시 검출)
+        # else: unassigned (more than N simultaneous detections)
 
-    # 4) ICM 반복 개선 (짧은 tracklet 부터 재배정)
+    # 4) ICM refinement (reassign, shortest tracklets first)
     moves_log = []
     for it in range(cfg.id_refine_iters):
         moves = 0
@@ -202,7 +202,7 @@ def assign_identities(df: pd.DataFrame, embs: dict, fps: float, persp, n_herd: i
                 slots[cur].members.remove(t)
             k, c = best_slot(t)
             if k is None:
-                if cur is not None:   # 원래 자리로
+                if cur is not None:   # back to its original slot
                     slots[cur].members.append(t)
                 continue
             slots[k].members.append(t); where[t] = k
@@ -212,10 +212,10 @@ def assign_identities(df: pd.DataFrame, embs: dict, fps: float, persp, n_herd: i
         if moves == 0:
             break
 
-    # 결과: tid → 개체 슬롯 번호
+    # result: tid → animal slot number
     out = df[df.tid.isin(where)].copy()
-    out["tid"] = out.tid.map(lambda t: where[t] + 1000)  # relabel 단계에서 1..N 으로 재부여
-    # 허용 오차(tol) 안의 겹침 프레임 → 신뢰도 높은 쪽만 남김
+    out["tid"] = out.tid.map(lambda t: where[t] + 1000)  # renumbered to 1..N in the relabel step
+    # overlapping frames within tolerance (tol) → keep only the more confident one
     out = out.sort_values("conf", ascending=False).drop_duplicates(["frame", "tid"]).sort_values(["frame", "tid"])
     n_un = int(df.tid.isin(set(T) - set(where)).sum())
     stats = dict(herd_size=int(n_herd), slots=len(slots), tracklets=len(T), unassigned_tracklets=len(T) - len(where),

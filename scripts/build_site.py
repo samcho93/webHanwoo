@@ -1,10 +1,12 @@
-"""강좌 사이트 빌더: site_src/lessons/*.html (본문 조각) → site/*.html (공통 레이아웃 + 내비게이션).
+"""Course site builder: site_src/lessons/*.html (body fragments) → site/*.html (shared layout + navigation).
 
-본문 조각 안의 특수 태그
-  <!--CODE:path/to/file.py-->            : 저장소의 실제 소스 전체를 코드 블록으로 삽입
-  <!--CODE:path/to/file.py:start-end-->  : 해당 줄 범위만 삽입
-  <!--RESULTS-->                         : outputs/*/result.json 을 읽어 결과 표 삽입
-  <!--TRAIN_METRICS-->                   : runs/hanwoo/train/results.csv 마지막 epoch 지표 삽입
+Special tags inside body fragments
+  <!--CODE:path/to/file.py-->            : insert the whole real source file from the repo as a code block
+  <!--CODE:path/to/file.py:start-end-->  : insert only that line range
+  <!--RESULTS-->                         : insert a results table read from outputs/*/result.json
+  <!--TRAIN_METRICS-->                   : insert metrics of the best epoch from runs/hanwoo/train/results.csv
+  <!--TRACKER_COMPARE-->                 : insert the tracker comparison table (outputs/tracker_comparison.json)
+  <!--VIDEOS-->                          : insert the tracked result videos
 usage: python scripts/build_site.py
 """
 import html
@@ -18,40 +20,40 @@ SRC = ROOT / "site_src"
 OUT = ROOT / "site"
 
 LESSONS = [
-    ("00_intro", "강좌 소개와 전체 구조"),
-    ("01_env", "개발 환경 구축"),
-    ("02_data", "데이터(축사 영상) 이해"),
-    ("03_detect", "객체 검출: 사전학습 YOLO 시험"),
-    ("04_dataset", "학습 데이터 자동 구축 (Pseudo-labeling)"),
-    ("05_train", "YOLO 미세조정 학습과 평가"),
-    ("06_tracking", "다중 객체 추적 (BoT-SORT)"),
-    ("07_stitching", "ID 일관성: 오프라인 Tracklet 정합"),
-    ("07b_reid", "ReID 학습과 고정 개체군 ID 유지"),
-    ("08_activity", "활동량 측정 알고리즘"),
-    ("09_visualize", "결과 영상과 대시보드"),
-    ("10_results", "전체 영상 실행과 결과 분석"),
-    ("11_apply", "새 영상 적용과 확장"),
-    ("12_live", "실시간 추적 프로그램 (RTSP 카메라)"),
-    ("13_paper", "논문: 고정 개체군 제약과 자기지도 ReID"),
+    ("00_intro", "Course Introduction and Overview"),
+    ("01_env", "Setting Up the Environment"),
+    ("02_data", "Understanding the Data (Barn Videos)"),
+    ("03_detect", "Object Detection: Trying Pretrained YOLO"),
+    ("04_dataset", "Building Training Data Automatically (Pseudo-labeling)"),
+    ("05_train", "Fine-tuning and Evaluating YOLO"),
+    ("06_tracking", "Multi-Object Tracking (BoT-SORT)"),
+    ("07_stitching", "ID Consistency: Offline Tracklet Stitching"),
+    ("07b_reid", "ReID Training and Fixed-Herd ID Keeping"),
+    ("08_activity", "Activity Measurement Algorithm"),
+    ("09_visualize", "Result Video and Dashboard"),
+    ("10_results", "Running All Videos and Analysing Results"),
+    ("11_apply", "Applying to New Videos and Extending"),
+    ("12_live", "Real-Time Tracking App (RTSP Cameras)"),
+    ("13_paper", "Paper: Fixed-Herd Constraint and Self-Supervised ReID"),
 ]
 
-LAYOUT = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
+LAYOUT = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title} · 한우 활동량 AI 강좌</title>
+<title>{title} · Hanwoo Activity AI Course</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <link rel="stylesheet" href="assets/style.css"></head><body>
-<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
-<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
-<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol>{nav}</ol>
-<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="Menu">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 Hanwoo Activity AI</a>
+<div class="sub">YOLO · Tracking · Activity · Dashboard</div><ol>{nav}</ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ Result dashboards</a></div></nav>
 <main class="content"><div class="crumb">Lesson {num} / {total}</div><h1>{title}</h1>
 {body}
 <div class="pager">{prev}{next}</div></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{{const b=document.createElement('button');b.className='copy';b.textContent='복사';
-b.onclick=()=>{{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)}};p.appendChild(b)}});</script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{{const b=document.createElement('button');b.className='copy';b.textContent='Copy';
+b.onclick=()=>{{navigator.clipboard.writeText(p.innerText.replace(/Copy$/,''));b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200)}};p.appendChild(b)}});</script>
 </body></html>"""
 
 
@@ -80,22 +82,22 @@ def results_table() -> str:
                     f"<td>{unas}</td>"
                     f"<td>{r['total_distance']:.1f}</td><td>{r['mean_activity']:.1f}</td><td>{r['proc_fps']:.0f}</td></tr>")
     if not rows:
-        return "<p class='note'>아직 결과가 없습니다. <code>python run_activity.py E:/Video/cow</code> 실행 후 다시 빌드하세요.</p>"
-    return ("<div class='tbl'><table><tr><th>영상</th><th>길이(s)</th><th>추적기 ID 수</th><th>최종 ID 수</th>"
-            "<th>추정 두수 N</th><th>병합</th><th>스왑 분리</th><th>제외 검출</th><th>총 이동거리(m)</th><th>평균 활동지수</th><th>처리속도(fps)</th></tr>"
+        return "<p class='note'>No results yet. Run <code>python run_activity.py E:/Video/cow</code> and rebuild.</p>"
+    return ("<div class='tbl'><table><tr><th>Video</th><th>Length (s)</th><th>Tracker IDs</th><th>Final IDs</th>"
+            "<th>Estimated herd N</th><th>Merges</th><th>Swap splits</th><th>Dropped detections</th><th>Total distance (m)</th><th>Mean activity index</th><th>Processing speed (fps)</th></tr>"
             + "".join(rows) + "</table></div>")
 
 
 def tracker_compare() -> str:
     p = ROOT / "outputs/tracker_comparison.json"
     if not p.exists():
-        return "<p class='note'>비교 실험 결과 없음</p>"
+        return "<p class='note'>No comparison results</p>"
     rows = json.loads(p.read_text(encoding="utf-8"))
     body = "".join(
         f"<tr><td>{r['video']}</td><td>{r['variant']}</td><td>{r['herd']}</td><td>{r['ids']}</td>"
         f"<td><b>{r['ratio']}</b></td><td>{r['mean_len_s']}</td><td>{r['full']}</td></tr>" for r in rows)
-    return ("<div class='tbl'><table><tr><th>영상</th><th>방법</th><th>추정 두수</th><th>ID 수</th>"
-            "<th>ID/두수</th><th>ID당 평균 지속(s)</th><th>전체지속 ID</th></tr>" + body + "</table></div>")
+    return ("<div class='tbl'><table><tr><th>Video</th><th>Method</th><th>Estimated herd</th><th>IDs</th>"
+            "<th>IDs/herd</th><th>Mean duration per ID (s)</th><th>Full-length IDs</th></tr>" + body + "</table></div>")
 
 
 def videos() -> str:
@@ -104,19 +106,19 @@ def videos() -> str:
         n = p.parent.name
         items.append(f"<figure><video src='../outputs/{n}/{p.name}' controls muted preload='none' "
                      f"poster='../outputs/{n}/{n}_bg.jpg'></video><figcaption>{n} · "
-                     f"<a href='../outputs/{n}/dashboard.html'>대시보드</a></figcaption></figure>")
+                     f"<a href='../outputs/{n}/dashboard.html'>Dashboard</a></figcaption></figure>")
     return "<div class='two'>" + "".join(items) + "</div>"
 
 
 def train_metrics() -> str:
     p = ROOT / "runs/hanwoo/train/results.csv"
     if not p.exists():
-        return "<p class='note'>학습 결과 없음</p>"
+        return "<p class='note'>No training results</p>"
     import csv
     rows = list(csv.DictReader(open(p, encoding="utf-8")))
     rows = [{k.strip(): v for k, v in r.items()} for r in rows]
     best = max(rows, key=lambda r: float(r["metrics/mAP50-95(B)"]))
-    return (f"<div class='kpis'><div><span>학습 epoch</span><b>{len(rows)}</b></div>"
+    return (f"<div class='kpis'><div><span>Epochs trained</span><b>{len(rows)}</b></div>"
             f"<div><span>best epoch</span><b>{int(float(best['epoch']))}</b></div>"
             f"<div><span>Precision</span><b>{float(best['metrics/precision(B)']):.3f}</b></div>"
             f"<div><span>Recall</span><b>{float(best['metrics/recall(B)']):.3f}</b></div>"

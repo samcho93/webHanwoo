@@ -1,36 +1,36 @@
-<p class="note">ReID 모델이 있으면(<code>models/hanwoo_reid.pt</code>) 이 레슨의 <b>1차 정합만</b> 쓰고, 장시간 재등장은 다음 레슨의 <b>고정 개체군 ID 배정</b>이 맡습니다. ReID 모델이 없을 때는 여기의 2단계 정합이 그대로 동작합니다.</p>
-<p class="lead">온라인 추적기는 “지금까지” 의 정보만으로 결정해야 합니다. 하지만 녹화 영상 분석에서는 <b>영상 전체를 다 본 뒤</b> 다시 판단할 수 있습니다. 축사는 <b>닫힌 공간 + 고정 카메라 + 같은 개체군</b>이라는 강한 조건이 있으므로, 끊어진 조각(tracklet)들을 다시 이어붙이는 것이 ID 일관성을 높이는 가장 효과적인 방법입니다.</p>
+<p class="note">If a ReID model is available (<code>models/hanwoo_reid.pt</code>), only the <b>first stitching pass</b> from this lesson is used, and long-term reappearances are handled by the <b>fixed-herd ID assignment</b> in the next lesson. Without a ReID model, the two-pass stitching described here runs as-is.</p>
+<p class="lead">An online tracker must decide using only the information it has “so far”. When analyzing recorded video, however, we can decide again <b>after seeing the entire video</b>. A barn offers strong constraints — <b>an enclosed space + a fixed camera + the same herd</b> — so re-joining broken pieces (tracklets) is the most effective way to improve ID consistency.</p>
 
-<figure><img src="assets/img/stitch_timeline.png"><figcaption>tracklet 타임라인 — 위: 온라인 추적기 결과(조각난 ID), 아래: 정합 후(한 마리 = 한 줄)</figcaption></figure>
+<figure><img src="assets/img/stitch_timeline.png"><figcaption>Tracklet timeline — top: online tracker output (fragmented IDs), bottom: after stitching (one animal = one row)</figcaption></figure>
 
-<h2>1. 알고리즘</h2>
+<h2>1. Algorithm</h2>
 <ol>
-<li><b>노이즈 제거</b>: 0.5초(12프레임) 미만 tracklet 은 오검출로 보고 제거</li>
-<li><b>원근 모델</b>: 같은 소라도 화면 위쪽(먼 곳)은 작게 보인다. 모든 검출에서 bbox 높이 h 와 중심 y 의 관계 <code>h(y) = a·y + b</code> 를 적합 → 거리를 “몸 크기 단위” 로 정규화</li>
-<li><b>연결 후보</b>: tracklet i 가 끝난 뒤 j 가 시작하고(시간 겹침 없음), 공백 ≤ 20초, 끝-시작 위치 거리 ≤ <code>2.5 + 0.6×공백(초)</code> 몸길이</li>
-<li><b>비용</b> <code>= 0.5 × (거리 / 허용거리) + 0.5 × 외형거리(Bhattacharyya) + 0.15 × (공백/최대공백)</code></li>
-<li><b>Hungarian</b> 으로 ‘끝’ ↔ ‘시작’ 1:1 최적 연결, 비용 &lt; 0.85 인 쌍만 병합. 연결이 없을 때까지 반복(체인 i→j→k 처리)</li>
-<li><b>2단계 정합</b>: 위 과정을 조건을 바꿔 두 번 수행
-<table><tr><th></th><th>1차 (짧은 끊김)</th><th>2차 (장시간 재등장)</th></tr>
-<tr><td>최대 공백</td><td>20초</td><td>5분</td></tr>
-<tr><td>허용 거리</td><td>2.5 + 0.6×공백 몸길이 (시간에 비례)</td><td>3 몸길이 고정 (사라진 <b>자리 근처</b>에서 재등장)</td></tr>
-<tr><td>외형 가중치 / 임계 비용</td><td>0.5 / 0.85</td><td>0.6 / 0.55 (더 엄격)</td></tr>
-<tr><td>대상</td><td>기둥·펜스 뒤 통과, 소끼리 잠깐 겹침</td><td>누워 있어 검출이 끊긴 소, 사료조 앞 군집</td></tr></table></li>
-<li><b>ID 재부여</b> (등장 순 1, 2, 3 …) + 0.5초 이하의 순간적인 검출 누락만 선형 <b>보간</b> (결과 영상에 얇은 박스로 표시)</li>
+<li><b>Noise removal</b>: tracklets shorter than 0.5 s (12 frames) are treated as false detections and removed</li>
+<li><b>Perspective model</b>: the same animal looks smaller near the top of the frame (farther away). Fit the relation between bbox height h and center y over all detections, <code>h(y) = a·y + b</code> → normalize distances into “body-size units”</li>
+<li><b>Link candidates</b>: tracklet j starts after tracklet i ends (no time overlap), gap ≤ 20 s, and the end-to-start distance ≤ <code>2.5 + 0.6×gap(s)</code> body lengths</li>
+<li><b>Cost</b> <code>= 0.5 × (distance / allowed distance) + 0.5 × appearance distance (Bhattacharyya) + 0.15 × (gap / max gap)</code></li>
+<li><b>Hungarian</b> for optimal 1:1 ‘end’ ↔ ‘start’ linking; only pairs with cost &lt; 0.85 are merged. Repeat until no more links are found (handles chains i→j→k)</li>
+<li><b>Two-pass stitching</b>: the process above is run twice with different conditions
+<table><tr><th></th><th>Pass 1 (short breaks)</th><th>Pass 2 (long-term reappearance)</th></tr>
+<tr><td>Max gap</td><td>20 s</td><td>5 min</td></tr>
+<tr><td>Allowed distance</td><td>2.5 + 0.6×gap body lengths (proportional to time)</td><td>Fixed 3 body lengths (reappears <b>near the spot</b> where it vanished)</td></tr>
+<tr><td>Appearance weight / cost threshold</td><td>0.5 / 0.85</td><td>0.6 / 0.55 (stricter)</td></tr>
+<tr><td>Targets</td><td>Passing behind pillars or fences, brief overlaps between cattle</td><td>Cattle lying down whose detections drop out, clusters in front of the feed bunk</td></tr></table></li>
+<li><b>Reassign IDs</b> (1, 2, 3 … in order of appearance) + linear <b>interpolation</b> only for momentary missed detections of 0.5 s or less (drawn as thin boxes in the output video)</li>
 </ol>
-<div class="tip"><b>보간은 짧게!</b> 처음에는 20초까지 보간했더니, 소가 누워 검출이 끊긴 동안 <b>소가 없는 자리에 가상 박스와 이동 경로</b>가 그려지고, 그 가짜 이동이 전체 이동거리의 23~32%를 차지했습니다. 지금은 0.5초 이하만 메우고, 더 긴 공백은 “보이지 않음”으로 둡니다. 활동량도 실제 검출 프레임으로만 계산합니다(레슨 09).</div>
+<div class="tip"><b>Keep interpolation short!</b> At first we interpolated gaps up to 20 s, and while cattle lay down and their detections dropped out, <b>virtual boxes and movement paths were drawn where no animal was</b>; that fake movement made up 23–32% of the total distance travelled. Now we fill only gaps of 0.5 s or less and leave longer gaps as “not visible”. Activity is also computed only from frames with actual detections (Lesson 09).</div>
 
-<h3>왜 bbox 높이로 원근을 잡나?</h3>
-<p>소의 실제 크기는 거의 같으므로, 화면에서의 크기 변화는 대부분 카메라와의 거리 때문입니다. 가림으로 잘린 박스가 많아 단순 평균은 작게 치우치므로, y 구간별 <b>75% 분위</b> 높이(대체로 가려지지 않은 소)를 써서 robust 하게 적합합니다.</p>
-<figure><img src="assets/img/perspective.png"><figcaption>bbox 높이 vs 화면 y — 선형 원근 모델 적합</figcaption></figure>
+<h3>Why use bbox height for perspective?</h3>
+<p>Cattle are nearly the same real size, so changes in on-screen size come mostly from the distance to the camera. Many boxes are truncated by occlusion, which biases a simple mean downward, so we fit robustly using the <b>75th-percentile</b> height per y-band (mostly unoccluded cattle).</p>
+<figure><img src="assets/img/perspective.png"><figcaption>bbox height vs. screen y — fitting a linear perspective model</figcaption></figure>
 
-<h3>외형 특징: H-S 색 히스토그램</h3>
-<p>bbox 중앙 60% 영역(펜스·배경 최소화)의 HSV 중 색상(H)·채도(S) 2D 히스토그램. 밝기(V)를 빼서 그늘·조명 변화에 둔감하게 하고, tracklet 전체 평균을 씁니다. 한우는 색이 비슷하지만 털색 농도·흰 반점 차이가 반영되며, 거리 조건과 결합하면 충분한 판별력이 생깁니다.</p>
+<h3>Appearance feature: H-S color histogram</h3>
+<p>A 2D histogram of hue (H) and saturation (S) in HSV over the central 60% of the bbox (minimizing fence and background). Leaving out value (V) makes it insensitive to shade and lighting changes, and we use the average over the whole tracklet. Hanwoo are similar in color, but differences in coat shade and white markings are captured, and combined with the distance condition this gives enough discriminative power.</p>
 
-<h2>2. 코드</h2>
+<h2>2. Code</h2>
 <!--CODE:hanwoo/stitching.py-->
 
-<h2>3. 파라미터 (config.py)</h2>
+<h2>3. Parameters (config.py)</h2>
 <!--CODE:hanwoo/config.py:26-38-->
-<div class="tip"><b>빠른 재튜닝</b>: 검출·추적 결과는 <code>outputs/&lt;영상&gt;/cache_track.npz</code> 에 저장됩니다. <code>python run_activity.py E:/Video/cow --reuse</code> 로 YOLO 를 다시 돌리지 않고 정합·활동량만 몇 초 만에 재계산할 수 있습니다.</div>
-<div class="tip"><b>튜닝 팁</b>: 결과에서 서로 다른 소가 하나로 합쳐지면 <code>stitch_max_cost</code> 를 낮추거나 <code>stitch_app_weight</code> 를 높이고, 한 소가 여전히 여러 ID 로 쪼개지면 <code>stitch_max_gap_s</code>, <code>stitch_max_dist_bl</code> 을 늘리세요.</div>
+<div class="tip"><b>Fast re-tuning</b>: detection and tracking results are saved to <code>outputs/&lt;video&gt;/cache_track.npz</code>. With <code>python run_activity.py E:/Video/cow --reuse</code> you can recompute only stitching and activity in a few seconds without rerunning YOLO.</div>
+<div class="tip"><b>Tuning tips</b>: if different cattle get merged into one, lower <code>stitch_max_cost</code> or raise <code>stitch_app_weight</code>; if one animal is still split into several IDs, increase <code>stitch_max_gap_s</code> and <code>stitch_max_dist_bl</code>.</div>

@@ -1,24 +1,24 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>전체 영상 실행과 결과 분석 · 한우 활동량 AI 강좌</title>
+<title>Running All Videos and Analysing Results · Hanwoo Activity AI Course</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <link rel="stylesheet" href="assets/style.css"></head><body>
-<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
-<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
-<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class='on'><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class=''><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li><li class=''><a href='13_paper.html'><span>14</span>논문: 고정 개체군 제약과 자기지도 ReID</a></li></ol>
-<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
-<main class="content"><div class="crumb">Lesson 11 / 14</div><h1>전체 영상 실행과 결과 분석</h1>
-<p class="lead">미세조정한 모델과 축사용 추적·정합·활동량 알고리즘으로 폴더의 10개 영상을 모두 처리한 결과입니다.</p>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="Menu">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 Hanwoo Activity AI</a>
+<div class="sub">YOLO · Tracking · Activity · Dashboard</div><ol><li class=''><a href='index.html'><span>00</span>Course Introduction and Overview</a></li><li class=''><a href='01_env.html'><span>01</span>Setting Up the Environment</a></li><li class=''><a href='02_data.html'><span>02</span>Understanding the Data (Barn Videos)</a></li><li class=''><a href='03_detect.html'><span>03</span>Object Detection: Trying Pretrained YOLO</a></li><li class=''><a href='04_dataset.html'><span>04</span>Building Training Data Automatically (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>Fine-tuning and Evaluating YOLO</a></li><li class=''><a href='06_tracking.html'><span>06</span>Multi-Object Tracking (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID Consistency: Offline Tracklet Stitching</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID Training and Fixed-Herd ID Keeping</a></li><li class=''><a href='08_activity.html'><span>09</span>Activity Measurement Algorithm</a></li><li class=''><a href='09_visualize.html'><span>10</span>Result Video and Dashboard</a></li><li class='on'><a href='10_results.html'><span>11</span>Running All Videos and Analysing Results</a></li><li class=''><a href='11_apply.html'><span>12</span>Applying to New Videos and Extending</a></li><li class=''><a href='12_live.html'><span>13</span>Real-Time Tracking App (RTSP Cameras)</a></li><li class=''><a href='13_paper.html'><span>14</span>Paper: Fixed-Herd Constraint and Self-Supervised ReID</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ Result dashboards</a></div></nav>
+<main class="content"><div class="crumb">Lesson 11 / 14</div><h1>Running All Videos and Analysing Results</h1>
+<p class="lead">These are the results of processing all 10 videos in the folder with the fine-tuned model and the barn-specific tracking, stitching and activity algorithms.</p>
 
-<h2>1. 실행</h2>
+<h2>1. Running it</h2>
 <pre><code class="language-bash">python run_activity.py E:/Video/cow</code></pre>
-<div class="file">📄 run_activity.py</div><pre><code class="language-python">&quot;&quot;&quot;사용법
-  python run_activity.py E:/Video/cow                # 폴더 내 모든 mp4 처리
-  python run_activity.py E:/Video/cow/cow01.mp4      # 단일 영상
-  python run_activity.py E:/Video/cow --reuse        # 검출·추적 재사용, 정합/활동량 파라미터만 재튜닝
-  python run_activity.py E:/Video/cow --reuse --herd-size 15   # 축사 마릿수 지정
+<div class="file">📄 run_activity.py</div><pre><code class="language-python">&quot;&quot;&quot;Usage
+  python run_activity.py E:/Video/cow                # process every mp4 in the folder
+  python run_activity.py E:/Video/cow/cow01.mp4      # single video
+  python run_activity.py E:/Video/cow --reuse        # reuse detection/tracking, retune only linking/activity parameters
+  python run_activity.py E:/Video/cow --reuse --herd-size 15   # set the herd size of the barn
   python run_activity.py new_farm.mp4 --weights models/hanwoo_yolo11s.pt --cow-height 1.25
 &quot;&quot;&quot;
 import argparse
@@ -31,16 +31,16 @@ from hanwoo.pipeline import process_video
 
 
 def main():
-    ap = argparse.ArgumentParser(description=&quot;한우 개체 ID 추적 및 활동량 측정&quot;)
-    ap.add_argument(&quot;source&quot;, help=&quot;동영상 파일 또는 폴더&quot;)
+    ap = argparse.ArgumentParser(description=&quot;Hanwoo individual ID tracking and activity measurement&quot;)
+    ap.add_argument(&quot;source&quot;, help=&quot;video file or folder&quot;)
     ap.add_argument(&quot;--weights&quot;, default=None)
     ap.add_argument(&quot;--out&quot;, default=str(OUTPUT_DIR))
-    ap.add_argument(&quot;--cow-height&quot;, type=float, default=None, help=&quot;원근 보정 기준 체고(m)&quot;)
-    ap.add_argument(&quot;--herd-size&quot;, type=int, default=0, help=&quot;축사 마릿수 N (0=자동 추정)&quot;)
-    ap.add_argument(&quot;--no-reid&quot;, action=&quot;store_true&quot;, help=&quot;ReID 고정 개체군 배정 대신 2단계 정합만 사용&quot;)
+    ap.add_argument(&quot;--cow-height&quot;, type=float, default=None, help=&quot;reference cow height (m) for perspective correction&quot;)
+    ap.add_argument(&quot;--herd-size&quot;, type=int, default=0, help=&quot;herd size N in the barn (0 = estimate automatically)&quot;)
+    ap.add_argument(&quot;--no-reid&quot;, action=&quot;store_true&quot;, help=&quot;use only two-stage linking instead of ReID fixed-herd assignment&quot;)
     ap.add_argument(&quot;--max-frames&quot;, type=int, default=0)
     ap.add_argument(&quot;--no-video&quot;, action=&quot;store_true&quot;)
-    ap.add_argument(&quot;--reuse&quot;, action=&quot;store_true&quot;, help=&quot;이전 검출·추적 결과(cache) 재사용, 정합·활동량만 재계산&quot;)
+    ap.add_argument(&quot;--reuse&quot;, action=&quot;store_true&quot;, help=&quot;reuse previous detection/tracking results (cache); recompute only linking and activity&quot;)
     a = ap.parse_args()
 
     cfg = PipelineConfig()
@@ -59,7 +59,7 @@ def main():
     results = []
     for v in videos:
         results.append(process_video(v, cfg, out, reuse=a.reuse))
-    # 기존 결과까지 포함해 index 갱신
+    # refresh index including earlier results
     allres = []
     for p in sorted(out.glob(&quot;*/result.json&quot;)):
         allres.append(json.loads(p.read_text(encoding=&quot;utf-8&quot;))[&quot;result&quot;])
@@ -70,23 +70,23 @@ def main():
 if __name__ == &quot;__main__&quot;:
     main()</code></pre>
 
-<h2>2. 영상별 결과</h2>
-<p>영상 이름을 누르면 해당 대시보드(결과 영상 포함)가 열립니다. <a href="../outputs/index.html">전체 요약 대시보드</a></p>
-<div class='tbl'><table><tr><th>영상</th><th>길이(s)</th><th>추적기 ID 수</th><th>최종 ID 수</th><th>추정 두수 N</th><th>병합</th><th>스왑 분리</th><th>제외 검출</th><th>총 이동거리(m)</th><th>평균 활동지수</th><th>처리속도(fps)</th></tr><tr><td><a href='../outputs/cow01/dashboard.html'>cow01</a></td><td>119</td><td>37</td><td><b>14</b></td><td>14</td><td>18</td><td>3</td><td>3.2%</td><td>50.9</td><td>10.1</td><td>36</td></tr><tr><td><a href='../outputs/cow02/dashboard.html'>cow02</a></td><td>119</td><td>34</td><td><b>14</b></td><td>14</td><td>11</td><td>0</td><td>0.1%</td><td>44.1</td><td>8.3</td><td>42</td></tr><tr><td><a href='../outputs/cow03/dashboard.html'>cow03</a></td><td>1316</td><td>272</td><td><b>14</b></td><td>14</td><td>153</td><td>12</td><td>4.5%</td><td>495.2</td><td>9.1</td><td>41</td></tr><tr><td><a href='../outputs/cow04/dashboard.html'>cow04</a></td><td>60</td><td>39</td><td><b>14</b></td><td>14</td><td>18</td><td>3</td><td>2.0%</td><td>41.2</td><td>14.1</td><td>42</td></tr><tr><td><a href='../outputs/cow05/dashboard.html'>cow05</a></td><td>60</td><td>41</td><td><b>11</b></td><td>11</td><td>24</td><td>4</td><td>8.3%</td><td>33.9</td><td>17.3</td><td>43</td></tr><tr><td><a href='../outputs/cow06/dashboard.html'>cow06</a></td><td>60</td><td>35</td><td><b>12</b></td><td>12</td><td>12</td><td>1</td><td>1.9%</td><td>42.3</td><td>17.3</td><td>44</td></tr><tr><td><a href='../outputs/cow07/dashboard.html'>cow07</a></td><td>60</td><td>44</td><td><b>15</b></td><td>15</td><td>23</td><td>5</td><td>1.9%</td><td>31.7</td><td>12.7</td><td>43</td></tr><tr><td><a href='../outputs/cow08/dashboard.html'>cow08</a></td><td>60</td><td>25</td><td><b>13</b></td><td>13</td><td>8</td><td>0</td><td>3.5%</td><td>35.0</td><td>15.5</td><td>44</td></tr><tr><td><a href='../outputs/cow09/dashboard.html'>cow09</a></td><td>60</td><td>27</td><td><b>15</b></td><td>15</td><td>10</td><td>2</td><td>0.0%</td><td>35.8</td><td>12.4</td><td>43</td></tr><tr><td><a href='../outputs/cow10/dashboard.html'>cow10</a></td><td>60</td><td>28</td><td><b>15</b></td><td>15</td><td>9</td><td>0</td><td>0.0%</td><td>30.9</td><td>11.1</td><td>43</td></tr></table></div>
+<h2>2. Results per video</h2>
+<p>Click a video name to open its dashboard (including the result video). <a href="../outputs/index.html">Overall summary dashboard</a></p>
+<div class='tbl'><table><tr><th>Video</th><th>Length (s)</th><th>Tracker IDs</th><th>Final IDs</th><th>Estimated herd N</th><th>Merges</th><th>Swap splits</th><th>Dropped detections</th><th>Total distance (m)</th><th>Mean activity index</th><th>Processing speed (fps)</th></tr><tr><td><a href='../outputs/cow01/dashboard.html'>cow01</a></td><td>119</td><td>37</td><td><b>14</b></td><td>14</td><td>18</td><td>3</td><td>3.2%</td><td>50.9</td><td>10.1</td><td>36</td></tr><tr><td><a href='../outputs/cow02/dashboard.html'>cow02</a></td><td>119</td><td>34</td><td><b>14</b></td><td>14</td><td>11</td><td>0</td><td>0.1%</td><td>44.1</td><td>8.3</td><td>42</td></tr><tr><td><a href='../outputs/cow03/dashboard.html'>cow03</a></td><td>1316</td><td>272</td><td><b>14</b></td><td>14</td><td>153</td><td>12</td><td>4.5%</td><td>495.2</td><td>9.1</td><td>41</td></tr><tr><td><a href='../outputs/cow04/dashboard.html'>cow04</a></td><td>60</td><td>39</td><td><b>14</b></td><td>14</td><td>18</td><td>3</td><td>2.0%</td><td>41.2</td><td>14.1</td><td>42</td></tr><tr><td><a href='../outputs/cow05/dashboard.html'>cow05</a></td><td>60</td><td>41</td><td><b>11</b></td><td>11</td><td>24</td><td>4</td><td>8.3%</td><td>33.9</td><td>17.3</td><td>43</td></tr><tr><td><a href='../outputs/cow06/dashboard.html'>cow06</a></td><td>60</td><td>35</td><td><b>12</b></td><td>12</td><td>12</td><td>1</td><td>1.9%</td><td>42.3</td><td>17.3</td><td>44</td></tr><tr><td><a href='../outputs/cow07/dashboard.html'>cow07</a></td><td>60</td><td>44</td><td><b>15</b></td><td>15</td><td>23</td><td>5</td><td>1.9%</td><td>31.7</td><td>12.7</td><td>43</td></tr><tr><td><a href='../outputs/cow08/dashboard.html'>cow08</a></td><td>60</td><td>25</td><td><b>13</b></td><td>13</td><td>8</td><td>0</td><td>3.5%</td><td>35.0</td><td>15.5</td><td>44</td></tr><tr><td><a href='../outputs/cow09/dashboard.html'>cow09</a></td><td>60</td><td>27</td><td><b>15</b></td><td>15</td><td>10</td><td>2</td><td>0.0%</td><td>35.8</td><td>12.4</td><td>43</td></tr><tr><td><a href='../outputs/cow10/dashboard.html'>cow10</a></td><td>60</td><td>28</td><td><b>15</b></td><td>15</td><td>9</td><td>0</td><td>0.0%</td><td>30.9</td><td>11.1</td><td>43</td></tr></table></div>
 
-<h2>3. 결과 영상 미리보기</h2>
-<div class='two'><figure><video src='../outputs/cow01/cow01_tracked.mp4' controls muted preload='none' poster='../outputs/cow01/cow01_bg.jpg'></video><figcaption>cow01 · <a href='../outputs/cow01/dashboard.html'>대시보드</a></figcaption></figure><figure><video src='../outputs/cow02/cow02_tracked.mp4' controls muted preload='none' poster='../outputs/cow02/cow02_bg.jpg'></video><figcaption>cow02 · <a href='../outputs/cow02/dashboard.html'>대시보드</a></figcaption></figure><figure><video src='../outputs/cow03/cow03_tracked.mp4' controls muted preload='none' poster='../outputs/cow03/cow03_bg.jpg'></video><figcaption>cow03 · <a href='../outputs/cow03/dashboard.html'>대시보드</a></figcaption></figure><figure><video src='../outputs/cow04/cow04_tracked.mp4' controls muted preload='none' poster='../outputs/cow04/cow04_bg.jpg'></video><figcaption>cow04 · <a href='../outputs/cow04/dashboard.html'>대시보드</a></figcaption></figure><figure><video src='../outputs/cow05/cow05_tracked.mp4' controls muted preload='none' poster='../outputs/cow05/cow05_bg.jpg'></video><figcaption>cow05 · <a href='../outputs/cow05/dashboard.html'>대시보드</a></figcaption></figure><figure><video src='../outputs/cow06/cow06_tracked.mp4' controls muted preload='none' poster='../outputs/cow06/cow06_bg.jpg'></video><figcaption>cow06 · <a href='../outputs/cow06/dashboard.html'>대시보드</a></figcaption></figure><figure><video src='../outputs/cow07/cow07_tracked.mp4' controls muted preload='none' poster='../outputs/cow07/cow07_bg.jpg'></video><figcaption>cow07 · <a href='../outputs/cow07/dashboard.html'>대시보드</a></figcaption></figure><figure><video src='../outputs/cow08/cow08_tracked.mp4' controls muted preload='none' poster='../outputs/cow08/cow08_bg.jpg'></video><figcaption>cow08 · <a href='../outputs/cow08/dashboard.html'>대시보드</a></figcaption></figure><figure><video src='../outputs/cow09/cow09_tracked.mp4' controls muted preload='none' poster='../outputs/cow09/cow09_bg.jpg'></video><figcaption>cow09 · <a href='../outputs/cow09/dashboard.html'>대시보드</a></figcaption></figure><figure><video src='../outputs/cow10/cow10_tracked.mp4' controls muted preload='none' poster='../outputs/cow10/cow10_bg.jpg'></video><figcaption>cow10 · <a href='../outputs/cow10/dashboard.html'>대시보드</a></figcaption></figure></div>
+<h2>3. Result video previews</h2>
+<div class='two'><figure><video src='../outputs/cow01/cow01_tracked.mp4' controls muted preload='none' poster='../outputs/cow01/cow01_bg.jpg'></video><figcaption>cow01 · <a href='../outputs/cow01/dashboard.html'>Dashboard</a></figcaption></figure><figure><video src='../outputs/cow02/cow02_tracked.mp4' controls muted preload='none' poster='../outputs/cow02/cow02_bg.jpg'></video><figcaption>cow02 · <a href='../outputs/cow02/dashboard.html'>Dashboard</a></figcaption></figure><figure><video src='../outputs/cow03/cow03_tracked.mp4' controls muted preload='none' poster='../outputs/cow03/cow03_bg.jpg'></video><figcaption>cow03 · <a href='../outputs/cow03/dashboard.html'>Dashboard</a></figcaption></figure><figure><video src='../outputs/cow04/cow04_tracked.mp4' controls muted preload='none' poster='../outputs/cow04/cow04_bg.jpg'></video><figcaption>cow04 · <a href='../outputs/cow04/dashboard.html'>Dashboard</a></figcaption></figure><figure><video src='../outputs/cow05/cow05_tracked.mp4' controls muted preload='none' poster='../outputs/cow05/cow05_bg.jpg'></video><figcaption>cow05 · <a href='../outputs/cow05/dashboard.html'>Dashboard</a></figcaption></figure><figure><video src='../outputs/cow06/cow06_tracked.mp4' controls muted preload='none' poster='../outputs/cow06/cow06_bg.jpg'></video><figcaption>cow06 · <a href='../outputs/cow06/dashboard.html'>Dashboard</a></figcaption></figure><figure><video src='../outputs/cow07/cow07_tracked.mp4' controls muted preload='none' poster='../outputs/cow07/cow07_bg.jpg'></video><figcaption>cow07 · <a href='../outputs/cow07/dashboard.html'>Dashboard</a></figcaption></figure><figure><video src='../outputs/cow08/cow08_tracked.mp4' controls muted preload='none' poster='../outputs/cow08/cow08_bg.jpg'></video><figcaption>cow08 · <a href='../outputs/cow08/dashboard.html'>Dashboard</a></figcaption></figure><figure><video src='../outputs/cow09/cow09_tracked.mp4' controls muted preload='none' poster='../outputs/cow09/cow09_bg.jpg'></video><figcaption>cow09 · <a href='../outputs/cow09/dashboard.html'>Dashboard</a></figcaption></figure><figure><video src='../outputs/cow10/cow10_tracked.mp4' controls muted preload='none' poster='../outputs/cow10/cow10_bg.jpg'></video><figcaption>cow10 · <a href='../outputs/cow10/dashboard.html'>Dashboard</a></figcaption></figure></div>
 
-<h2>4. 결과 해석과 한계</h2>
+<h2>4. Interpreting the results and limitations</h2>
 <ul>
-<li><b>최종 ID 수 vs 실제 두수</b>: 정합 후 ID 수가 축사 두수(약 11~13)에 가까울수록 좋습니다. 남는 초과 ID 는 주로 ① 화면 가장자리에서 잠깐 보이는 옆 칸의 소, ② 오래 가려져 있다가 멀리서 다시 나타난 소입니다.</li>
-<li><b>긴 영상(cow03, 22분)</b>은 2단계 정합만으로는 ID 가 29개 남았지만, ReID + 고정 개체군 배정(레슨 08) 후 추정 두수 N 과 같은 수로 유지됩니다.</li>
-<li><b>절대 거리</b>는 체고 기반 근사이므로 ±20~30% 오차가 있을 수 있습니다. 그러나 같은 카메라 안에서의 <b>개체 간·시간대 간 상대 비교</b>는 신뢰할 수 있습니다.</li>
-<li>정답(Ground Truth) ID 라벨이 있으면 MOTA, IDF1, HOTA 등 표준 추적 지표로 정량 평가할 수 있습니다 (TrackEval 라이브러리).</li>
+<li><b>Final ID count vs. actual herd size</b>: the closer the post-stitching ID count is to the number of animals in the pen (about 11–13), the better. Leftover extra IDs are mostly ① animals in the neighboring pen briefly visible at the edge of the frame, and ② animals that were occluded for a long time and reappeared far away.</li>
+<li>For the <b>long video (cow03, 22 minutes)</b>, two-stage stitching alone still left 29 IDs, but after ReID + fixed-herd assignment (Lesson 08) the count is held at the estimated herd size N.</li>
+<li><b>Absolute distance</b> is an approximation based on body height and may be off by ±20–30%. However, <b>relative comparisons between animals and between time periods</b> within the same camera are reliable.</li>
+<li>If ground-truth ID labels are available, you can evaluate quantitatively with standard tracking metrics such as MOTA, IDF1 and HOTA (TrackEval library).</li>
 </ul>
 
-<div class="pager"><a href='09_visualize.html'>← 결과 영상과 대시보드</a><a class='nx' href='11_apply.html'>새 영상 적용과 확장 →</a></div></main>
+<div class="pager"><a href='09_visualize.html'>← Result Video and Dashboard</a><a class='nx' href='11_apply.html'>Applying to New Videos and Extending →</a></div></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
-b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='Copy';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/Copy$/,''));b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200)};p.appendChild(b)});</script>
 </body></html>

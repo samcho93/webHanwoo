@@ -1,6 +1,6 @@
-"""4단계: 결과 동영상 렌더링 (ID 박스 + 이동궤적 + 실시간 미니 대시보드 패널).
+"""Stage 4: render the result video (ID boxes + trails + live mini-dashboard panel).
 
-브라우저 재생 호환을 위해 ffmpeg 파이프로 H.264(yuv420p, faststart) 인코딩.
+Encoded to H.264 (yuv420p, faststart) through an ffmpeg pipe for browser playback.
 """
 from __future__ import annotations
 
@@ -58,11 +58,11 @@ def render_video(video_path, act: pd.DataFrame, meta: dict, out_path, cfg: Pipel
                 col = id_color(tid)
                 x1, y1, x2, y2 = int(r.x1), int(r.y1), int(r.x2), int(r.y2)
                 thick = 1 if r.interp else 2
-                if r.interp:  # 보간(가림) 구간은 점선 느낌으로 얇게
+                if r.interp:  # interpolated (occluded) spans drawn thin, dashed-looking
                     cv2.rectangle(frame, (x1, y1), (x2, y2), col, 1, cv2.LINE_4)
                 else:
                     cv2.rectangle(frame, (x1, y1), (x2, y2), col, thick, cv2.LINE_AA)
-                if not r.interp:   # 궤적은 실제 검출 위치만 (보간 위치로 경로를 그리지 않음)
+                if not r.interp:   # trails use real detections only (no paths drawn through interpolated positions)
                     trails[tid].append((int(r.cx), int(r.cy)))
                     last_seen[tid] = fi
                 pts = list(trails[tid])

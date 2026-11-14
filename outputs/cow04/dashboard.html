@@ -1,9 +1,9 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>cow04 활동량 대시보드</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>cow04 Activity Dashboard</title>
 <style>
 :root{--bg:#f6f5f1;--card:#fff;--ink:#1f2328;--mut:#5c6370;--line:#e3e0d8;--acc:#b5562b}
 @media (prefers-color-scheme: dark){:root{--bg:#16171a;--card:#1f2125;--ink:#e8e6e1;--mut:#9aa0a8;--line:#30333a;--acc:#e08a5a}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 header{padding:20px 24px;border-bottom:1px solid var(--line)}h1{margin:0;font-size:22px}header p{margin:4px 0 0;color:var(--mut);font-size:14px}
 main{max-width:1280px;margin:0 auto;padding:20px 16px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
@@ -15,18 +15,18 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:6px 8px;b
 th{color:var(--mut);font-weight:600}.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
 .tblwrap{overflow-x:auto}a{color:var(--acc)}
 </style><script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script></head><body>
-<header><h1>🐂 cow04 · 한우 개체별 활동량 대시보드</h1>
-<p>검출 모델: hanwoo_yolo11s.pt · 추적: BoT-SORT + ReID(hanwoo_reid.pt) 고정 개체군 배정 N=14 · 원근보정 체고 1.3 m 기준 · <a href="../index.html">전체 요약</a></p></header>
+<header><h1>🐂 cow04 · Hanwoo Per-Animal Activity Dashboard</h1>
+<p>Detector: hanwoo_yolo11s.pt · Tracking: BoT-SORT + ReID(hanwoo_reid.pt) fixed-herd assignment N=14 · perspective correction with 1.3 m cow height · <a href="../index.html">Overall summary</a></p></header>
 <main>
-<div class="kpis"><div class='kpi'><span>식별된 개체 수</span><b>14 두</b></div><div class='kpi'><span>영상 길이</span><b>60 초</b></div><div class='kpi'><span>총 이동거리(무리)</span><b>41.2 m</b></div><div class='kpi'><span>평균 활동지수</span><b>14.1</b></div><div class='kpi'><span>최고 활동 개체</span><b>ID 6 (41.8)</b></div></div>
+<div class="kpis"><div class='kpi'><span>Animals identified</span><b>14</b></div><div class='kpi'><span>Video length</span><b>60 s</b></div><div class='kpi'><span>Total distance (herd)</span><b>41.2 m</b></div><div class='kpi'><span>Mean activity index</span><b>14.1</b></div><div class='kpi'><span>Most active animal</span><b>ID 6 (41.8)</b></div></div>
 <div class="grid">
-<div class="card full"><h2>ID 부여 결과 영상</h2><video src="cow04_tracked.mp4" controls muted preload="metadata"></video></div>
-<div class="card"><h2>개체별 이동거리 (m)</h2><div id="dist" style="height:320px"></div></div>
-<div class="card"><h2>개체별 행동 상태 비율 (%)</h2><div id="state" style="height:320px"></div></div>
-<div class="card full"><h2>시간대별 활동지수 (5초 평균)</h2><div id="ts" style="height:360px"></div></div>
-<div class="card full"><h2>이동 궤적 (화면 좌표)</h2><div id="traj" style="height:460px"></div></div>
-<div class="card full"><h2>개체별 요약표</h2><div class="tblwrap"><table>
-<tr><th>ID</th><th>추적시간(s)</th><th>실관측비율</th><th>이동거리(m)</th><th>평균속도(m/s)</th><th>휴식%</th><th>국소활동%</th><th>보행%</th><th>활동지수</th></tr>
+<div class="card full"><h2>Video with assigned IDs</h2><video src="cow04_tracked.mp4" controls muted preload="metadata"></video></div>
+<div class="card"><h2>Distance per animal (m)</h2><div id="dist" style="height:320px"></div></div>
+<div class="card"><h2>Behaviour state share per animal (%)</h2><div id="state" style="height:320px"></div></div>
+<div class="card full"><h2>Activity index over time (5 s mean)</h2><div id="ts" style="height:360px"></div></div>
+<div class="card full"><h2>Trajectories (image coordinates)</h2><div id="traj" style="height:460px"></div></div>
+<div class="card full"><h2>Per-animal summary</h2><div class="tblwrap"><table>
+<tr><th>ID</th><th>Tracked (s)</th><th>Observed ratio</th><th>Distance (m)</th><th>Mean speed (m/s)</th><th>Rest %</th><th>Active %</th><th>Walk %</th><th>Activity index</th></tr>
 <tr><td><span class='sw' style='background:#2665ff'></span>ID 1</td><td>59.5</td><td>100%</td><td>1.61</td><td>0.037</td><td>74.7</td><td>24.2</td><td>1.1</td><td><b>8.6</b></td></tr><tr><td><span class='sw' style='background:#a4ff26'></span>ID 2</td><td>58.3</td><td>98%</td><td>2.9</td><td>0.06</td><td>74.3</td><td>15.8</td><td>9.9</td><td><b>13.8</b></td></tr><tr><td><span class='sw' style='background:#ff26e3'></span>ID 3</td><td>48.0</td><td>81%</td><td>1.91</td><td>0.053</td><td>70.4</td><td>22.7</td><td>6.9</td><td><b>12.9</b></td></tr><tr><td><span class='sw' style='background:#26ffda'></span>ID 4</td><td>25.9</td><td>48%</td><td>0.12</td><td>0.02</td><td>94.1</td><td>5.9</td><td>0.0</td><td><b>4.9</b></td></tr><tr><td><span class='sw' style='background:#ff9b26'></span>ID 5</td><td>59.2</td><td>100%</td><td>3.42</td><td>0.066</td><td>62.6</td><td>28.1</td><td>9.4</td><td><b>14.8</b></td></tr><tr><td><span class='sw' style='background:#5c26ff'></span>ID 6</td><td>57.5</td><td>97%</td><td>13.85</td><td>0.247</td><td>23.9</td><td>33.0</td><td>43.1</td><td><b>41.8</b></td></tr><tr><td><span class='sw' style='background:#2fff26'></span>ID 7</td><td>45.3</td><td>76%</td><td>4.69</td><td>0.113</td><td>52.8</td><td>31.4</td><td>15.7</td><td><b>22.1</b></td></tr><tr><td><span class='sw' style='background:#ff266e'></span>ID 8</td><td>59.5</td><td>100%</td><td>1.93</td><td>0.045</td><td>79.8</td><td>14.0</td><td>6.2</td><td><b>11.6</b></td></tr><tr><td><span class='sw' style='background:#26adff'></span>ID 9</td><td>47.7</td><td>80%</td><td>3.18</td><td>0.077</td><td>51.3</td><td>39.4</td><td>9.3</td><td><b>15.8</b></td></tr><tr><td><span class='sw' style='background:#edff26'></span>ID 10</td><td>59.4</td><td>100%</td><td>2.66</td><td>0.059</td><td>51.5</td><td>47.1</td><td>1.5</td><td><b>13.2</b></td></tr><tr><td><span class='sw' style='background:#d126ff'></span>ID 11</td><td>59.5</td><td>100%</td><td>0.09</td><td>0.015</td><td>97.2</td><td>2.8</td><td>0.0</td><td><b>3.8</b></td></tr><tr><td><span class='sw' style='background:#26ff92'></span>ID 12</td><td>44.1</td><td>74%</td><td>1.69</td><td>0.045</td><td>86.6</td><td>3.2</td><td>10.2</td><td><b>8.7</b></td></tr><tr><td><span class='sw' style='background:#ff5326'></span>ID 13</td><td>22.7</td><td>45%</td><td>1.54</td><td>0.076</td><td>59.2</td><td>28.3</td><td>12.5</td><td><b>16.6</b></td></tr><tr><td><span class='sw' style='background:#2638ff'></span>ID 14</td><td>45.9</td><td>91%</td><td>1.61</td><td>0.043</td><td>81.5</td><td>12.8</td><td>5.7</td><td><b>8.9</b></td></tr></table></div></div>
 </div></main>
 <script>
@@ -39,12 +39,12 @@ const cfg={displaylogo:false,responsive:true};
 const ids=D.summary.map(r=>'ID '+r.id), col=D.summary.map(r=>D.colors[r.id]);
 Plotly.newPlot('dist',[{type:'bar',x:ids,y:D.summary.map(r=>r.distance_m),marker:{color:col}}],L(),cfg);
 Plotly.newPlot('state',[
- {type:'bar',name:'휴식',x:ids,y:D.summary.map(r=>r.rest_pct),marker:{color:'#9aa0a8'}},
- {type:'bar',name:'국소활동',x:ids,y:D.summary.map(r=>r.active_pct),marker:{color:'#e8a33d'}},
- {type:'bar',name:'보행',x:ids,y:D.summary.map(r=>r.walk_pct),marker:{color:'#3fa45b'}}],
+ {type:'bar',name:'Rest',x:ids,y:D.summary.map(r=>r.rest_pct),marker:{color:'#9aa0a8'}},
+ {type:'bar',name:'Active (local)',x:ids,y:D.summary.map(r=>r.active_pct),marker:{color:'#e8a33d'}},
+ {type:'bar',name:'Walk',x:ids,y:D.summary.map(r=>r.walk_pct),marker:{color:'#3fa45b'}}],
  L({barmode:'stack',legend:{orientation:'h',y:1.1}}),cfg);
 Plotly.newPlot('ts',Object.entries(D.ts).map(([k,v])=>({type:'scatter',mode:'lines',name:'ID '+k,x:v.t,y:v.a,line:{color:D.colors[k],width:1.6}})),
- L({xaxis:{title:'시간(s)',gridcolor:grid},yaxis:{title:'활동지수',gridcolor:grid}}),cfg);
+ L({xaxis:{title:'Time (s)',gridcolor:grid},yaxis:{title:'Activity index',gridcolor:grid}}),cfg);
 Plotly.newPlot('traj',Object.entries(D.traj).map(([k,v])=>({type:'scatter',mode:'lines',name:'ID '+k,x:v.x,y:v.y,line:{color:D.colors[k],width:1.5}})),
  L({images:[{source:'cow04_bg.jpg',xref:'x',yref:'y',x:0,y:0,sizex:D.meta.width,sizey:D.meta.height,sizing:'stretch',layer:'below',opacity:0.55}],
    xaxis:{range:[0,D.meta.width],showgrid:false},yaxis:{range:[D.meta.height,0],showgrid:false,scaleanchor:'x'}}),cfg);

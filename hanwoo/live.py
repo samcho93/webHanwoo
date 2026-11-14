@@ -1,10 +1,10 @@
-"""실시간 엔진: 입력(파일 / RTSP / 웹캠) → YOLO + BoT-SORT → ReID → OnlineHerd → 화면·저장.
+"""Live engine: input (file / RTSP / webcam) → YOLO + BoT-SORT → ReID → OnlineHerd → display/output.
 
-GUI(live_app.py) 와 헤드리스 실행 모두 이 모듈을 사용한다.
-파라미터는 LiveConfig 하나에 모여 있고, 실행 중 engine.update(dict) 로 바꿀 수 있다.
-  · 즉시 반영 : 검출 conf/iou/imgsz, ID 배정 비용·게이트, 활동량 기준 …
-  · 트래커 재시작 : BoT-SORT 설정 (ID 는 개체 슬롯이 유지하므로 끊기지 않는다)
-  · 다시 세기 : 등록 관련 (enroll_s, count_*, herd_size) → engine.recount()
+Used by both the GUI (live_app.py) and headless runs.
+All parameters live in a single LiveConfig and can be changed at runtime with engine.update(dict).
+  · applied immediately : detection conf/iou/imgsz, ID assignment cost/gate, activity thresholds …
+  · tracker restart     : BoT-SORT settings (IDs are kept by the animal slots, so they do not break)
+  · recount            : enrollment-related (enroll_s, count_*, herd_size) → engine.recount()
 """
 from __future__ import annotations
 
@@ -37,18 +37,18 @@ RECOUNT_KEYS = ("enroll_s", "count_conf", "count_stable_s", "count_min_track_s",
 
 @dataclass
 class LiveConfig:
-    # 입력
-    source: str = r"E:\Video\cow\cow09.mp4"   # 파일 경로 / rtsp://... / 웹캠 번호(0)
-    rtsp_tcp: bool = True                     # RTSP 를 TCP 로 (패킷 손실에 강함)
-    realtime: bool = True                     # 파일을 원래 속도로 재생 (끄면 최대 속도)
+    # Input
+    source: str = r"E:\Video\cow\cow09.mp4"   # file path / rtsp://... / webcam index (0)
+    rtsp_tcp: bool = True                     # RTSP over TCP (robust to packet loss)
+    realtime: bool = True                     # play files at original speed (off = max speed)
     loop_file: bool = False
-    # 검출
+    # Detection
     weights: str = str(MODELS_DIR / "hanwoo_yolo11s.pt")
     imgsz: int = 960
     conf: float = 0.25
     iou: float = 0.6
     device: str = "0"
-    # 추적기 (BoT-SORT) — 바꾸면 트래커 재시작
+    # Tracker (BoT-SORT) — change restarts the tracker
     track_high_thresh: float = 0.35
     track_low_thresh: float = 0.10
     new_track_thresh: float = 0.45
@@ -57,18 +57,18 @@ class LiveConfig:
     # ReID
     reid_weights: str = str(MODELS_DIR / "hanwoo_reid.pt")
     reid_every: int = 4
-    # 등록(마릿수 카운트) — 바꾸면 '다시 세기'
-    enroll_s: float = 60.0                    # 처음 몇 초 동안 마릿수를 세고 외형을 등록할지
-    count_conf: float = 0.4                   # 마릿수에 포함할 최소 신뢰도
-    count_stable_s: float = 2.0               # 동시 검출 수가 이 시간 이상 유지돼야 인정
-    count_min_track_s: float = 2.0            # 외형 군집 인정 최소 길이
-    count_mode: str = "max"                   # sim(동시검출) / cluster(외형군집) / max(둘 중 큰 값)
-    herd_size: int = 0                        # 0 = 자동, >0 = 사용자 지정 마릿수
-    cluster_sim: float = 0.60                 # 이 유사도 이상이고 함께 보인 적 없는 트랙만 같은 소로 묶음
+    # Enrollment (herd count) — change requires 'Recount'
+    enroll_s: float = 60.0                    # initial seconds spent counting the herd and enrolling appearances
+    count_conf: float = 0.4                   # min confidence to be included in the count
+    count_stable_s: float = 2.0               # simultaneous detection count must hold at least this long
+    count_min_track_s: float = 2.0            # min track length for an appearance cluster to count
+    count_mode: str = "max"                   # sim (simultaneous) / cluster (appearance clusters) / max (larger of the two)
+    herd_size: int = 0                        # 0 = auto, >0 = user-specified herd size
+    cluster_sim: float = 0.60                 # merge tracks into one animal only above this similarity and if never seen together
     cooc_tol_s: float = 0.5
-    # ID 배정 (즉시 반영)
-    confirm_s: float = 1.0                    # 새 트랙 ID 확정 전 외형 수집 시간
-    release_s: float = 1.0                    # 이 시간 안 보이면 슬롯 '사라짐'
+    # ID assignment (applied immediately)
+    confirm_s: float = 1.0                    # appearance collection time before a new track's ID is confirmed
+    release_s: float = 1.0                    # slot becomes 'missing' after being unseen this long
     id_app_weight: float = 0.6
     id_radius_bl: float = 2.0
     id_speed_bl_s: float = 0.5
@@ -83,7 +83,7 @@ class LiveConfig:
     drift_margin: float = 0.25
     auto_grow: bool = True
     grow_s: float = 5.0
-    # 활동량 (즉시 반영)
+    # Activity (applied immediately)
     cow_height_m: float = 1.30
     smooth_window_s: float = 1.0
     rest_speed: float = 0.05
@@ -92,16 +92,16 @@ class LiveConfig:
     motion_norm: float = 5.0
     max_speed: float = 2.0
     interp_max_gap_s: float = 0.5
-    # 표시 / 저장
+    # Display / output
     trail_s: float = 3.0
     show_pending: bool = True
     show_zones: bool = True
-    # 검출 영역 (축사 밖·흐린 배경 오검출 제거)
-    zones_file: str = ""                      # 비우면 configs/zones/<영상이름>.json → default.json 자동
-    min_size_ratio: float = 0.0               # 박스 높이 / 기대 체고 하한 (0=끔, 0.3~0.5 권장)
-    static_min_s: float = 120.0               # 같은 자리에 이 시간 이상 고정된 작은 박스 = 배경 물체 오검출 후보
-    static_max_ratio: float = 0.5             # 후보 크기비 상한 (누운 소 보호)
-    static_auto: bool = False                 # 후보를 확인 없이 바로 제외 영역에 추가
+    # Detection zones (remove false positives outside the pen / in blurred background)
+    zones_file: str = ""                      # empty = configs/zones/<video name>.json → default.json automatically
+    min_size_ratio: float = 0.0               # min box height / expected body height (0=off, 0.3–0.5 recommended)
+    static_min_s: float = 120.0               # small box fixed in place at least this long = background-object false-positive candidate
+    static_max_ratio: float = 0.5             # max candidate size ratio (protects lying cattle)
+    static_auto: bool = False                 # add candidates to the exclude zones without confirmation
     panel_width: int = 380
     save_video: bool = False
     save_csv: bool = True
@@ -122,10 +122,10 @@ def is_stream(src: str) -> bool:
     return s.isdigit() or s.startswith(("rtsp://", "rtsps://", "http://", "https://", "udp://", "tcp://", "rtmp://"))
 
 
-# --------------------------------------------------------------------------- 입력
+# --------------------------------------------------------------------------- Input
 class FrameSource:
-    """파일: 순서대로 모든 프레임 (realtime 이면 원래 속도로).
-    스트림: 별도 스레드가 계속 읽고 '가장 최근 프레임' 만 넘김 (처리가 느려도 지연이 쌓이지 않음), 끊기면 재연결."""
+    """File: every frame in order (at original speed if realtime).
+    Stream: a separate thread reads continuously and hands over only the 'latest frame' (no lag build-up when processing is slow); reconnects on disconnect."""
 
     def __init__(self, cfg: LiveConfig, log=print):
         self.cfg, self.log = cfg, log
@@ -154,7 +154,7 @@ class FrameSource:
         if not self.cap.isOpened():
             self.connected = False
             if not self.stream:
-                raise IOError(f"영상을 열 수 없습니다: {self.src}")
+                raise IOError(f"Cannot open video: {self.src}")
             return False
         f = self.cap.get(cv2.CAP_PROP_FPS)
         self.fps = f if f and 1 <= f <= 120 else 24.0
@@ -166,16 +166,16 @@ class FrameSource:
         backoff = 1.0
         while not self._stop.is_set():
             if not self.connected:
-                self.log(f"스트림 연결 시도: {self.src}")
+                self.log(f"Connecting to stream: {self.src}")
                 if not self._open():
                     time.sleep(backoff)
                     backoff = min(backoff * 2, 5)
                     continue
-                self.log("스트림 연결됨")
+                self.log("Stream connected")
                 backoff = 1.0
             ok, fr = self.cap.read()
             if not ok:
-                self.log("스트림 끊김 → 재연결")
+                self.log("Stream disconnected → reconnecting")
                 self.connected = False
                 self.cap.release()
                 continue
@@ -187,7 +187,7 @@ class FrameSource:
                 self._cv.notify()
 
     def read(self, timeout=5.0):
-        """반환 (frame_no, t_seconds, frame) 또는 None(끝)."""
+        """Returns (frame_no, t_seconds, frame) or None (end)."""
         if self.stream:
             with self._cv:
                 if self._latest is None:
@@ -210,7 +210,7 @@ class FrameSource:
             self.cap.release()
 
 
-# --------------------------------------------------------------------------- 엔진
+# --------------------------------------------------------------------------- Engine
 class LiveEngine:
     def __init__(self, cfg: LiveConfig, log=print):
         self.cfg = cfg
@@ -233,7 +233,7 @@ class LiveEngine:
         self.static_candidates = []
         self._apply_static = False
 
-    # ---------------- 제어
+    # ---------------- Control
     def start(self):
         self._stop.clear()
         self.thread = threading.Thread(target=self._run_safe, daemon=True)
@@ -257,7 +257,7 @@ class LiveEngine:
     def running(self):
         return self.thread is not None and self.thread.is_alive()
 
-    # ---------------- 모델
+    # ---------------- Models
     def _load_models(self):
         from ultralytics import YOLO
 
@@ -267,7 +267,7 @@ class LiveEngine:
         w = cfg.weights if Path(cfg.weights).exists() else "yolo11x.pt"
         self._yolo = YOLO(w)
         self._classes = None if len(self._yolo.names) == 1 else [17, 19]
-        self.log(f"검출 모델: {Path(w).name}")
+        self.log(f"Detection model: {Path(w).name}")
         dev = "cuda" if cfg.device != "cpu" else "cpu"
         try:
             import torch
@@ -278,14 +278,14 @@ class LiveEngine:
         self._dev = dev
         if Path(cfg.reid_weights).exists():
             self._reid = load_reid(cfg.reid_weights, device=dev)
-            self.log(f"ReID 모델: {Path(cfg.reid_weights).name} ({dev})")
+            self.log(f"ReID model: {Path(cfg.reid_weights).name} ({dev})")
         else:
             self._reid = None
-            self.log("ReID 모델 없음 → 위치·움직임만으로 ID 배정 (정확도 낮음)")
+            self.log("No ReID model → IDs assigned from position/motion only (lower accuracy)")
         self._write_tracker_yaml()
 
     def _write_tracker_yaml(self):
-        # 기본 설정 파일(key: value 형식)을 읽어 추적기 파라미터만 바꿔 쓴다
+        # Read the base config file (key: value format) and override only the tracker parameters
         lines = []
         for ln in (ROOT / "configs" / "hanwoo_botsort.yaml").read_text(encoding="utf-8").splitlines():
             k = ln.split(":", 1)[0].strip()
@@ -299,18 +299,18 @@ class LiveEngine:
 
     def _reset_tracker(self):
         self._write_tracker_yaml()
-        self._yolo.predictor = None          # 다음 track() 호출 때 새 트래커 생성
-        self._gen += 1                       # 트랙 key 충돌 방지 (key = gen*1e6 + id)
-        self.log("추적기 재시작 (개체 ID 는 슬롯이 유지)")
+        self._yolo.predictor = None          # new tracker is created on the next track() call
+        self._gen += 1                       # avoid track key collisions (key = gen*1e6 + id)
+        self.log("Tracker restarted (animal IDs are kept by their slots)")
 
-    # ---------------- 실행
+    # ---------------- Run
     def _run_safe(self):
         try:
             self._run()
-        except Exception as e:  # GUI 에 표시
+        except Exception as e:  # shown in the GUI
             import traceback
             self.error = f"{e}\n{traceback.format_exc()}"
-            self.log(f"[오류] {e}")
+            self.log(f"[Error] {e}")
 
     def _apply_pending(self, herd: OnlineHerd):
         with self._lock:
@@ -327,7 +327,7 @@ class LiveEngine:
         if "static_apply" in ch:
             self._apply_static = True
         if "zones_file" in ch or "zones_reload" in ch:
-            self._zf = None                  # 다음 프레임에서 영역 다시 읽기
+            self._zf = None                  # reload zones on the next frame
         if "herd_size" in ch and herd.phase == "track" and self.cfg.herd_size > 0 \
                 and self.cfg.herd_size != len(herd.slots):
             self._recount = True
@@ -340,10 +340,10 @@ class LiveEngine:
         self._zf = ZoneFilter(load_zones(p), W, H)
         self._zf_size = (W, H)
         if self._zf.active:
-            self.log(f"검출 영역 적용: {p.name} (포함 {len(self._zf.inc)}, 제외 {len(self._zf.exc)})")
+            self.log(f"Detection zones applied: {p.name} (include {len(self._zf.inc)}, exclude {len(self._zf.exc)})")
 
     def _static_step(self, herd, boxes, dt, t, W, H):
-        """배경 물체 오검출(같은 자리에 오래 고정된 작은 박스) 탐지 → 후보 알림 / 제외 영역 추가."""
+        """Detect background-object false positives (small boxes fixed in place for long) → notify candidates / add exclude zones."""
         cfg = self.cfg
         st = self._static
         st.min_s, st.max_ratio = cfg.static_min_s, cfg.static_max_ratio
@@ -351,13 +351,13 @@ class LiveEngine:
         if herd.phase != "track" or (t - self._static_t < 10 and not self._apply_static):
             return
         self._static_t = t
-        cands = [c for c in st.candidates(herd.persp, W, H) if self._zf.keep(c["box"])]   # 아직 제외 안 된 것만
+        cands = [c for c in st.candidates(herd.persp, W, H) if self._zf.keep(c["box"])]   # only those not yet excluded
         for c in cands:
             k = tuple(round(v) for v in c["box"])
             if k not in self._static_seen:
                 self._static_seen.add(k)
-                herd.event(t, f"고정 오검출 후보: 박스 {k} {c['seconds']:.0f}초 고정, 크기비 {c['ratio']}"
-                              + ("" if cfg.static_auto else " → [고정 오검출 제외] 로 적용"))
+                herd.event(t, f"Static false-positive candidate: box {k} fixed for {c['seconds']:.0f}s, size ratio {c['ratio']}"
+                              + ("" if cfg.static_auto else " → apply with [Exclude static false positives]"))
         self.static_candidates = cands
         if cands and (cfg.static_auto or self._apply_static):
             path = self.zones_path() or (ZONES_DIR / f"{zone_stem(cfg.source)}.json")
@@ -366,7 +366,7 @@ class LiveEngine:
                 cfg.zones_file = str(path)
             self._zf = None
             self.static_candidates = []
-            herd.event(t, f"고정 오검출 {len(cands)}개를 제외 영역에 추가 ({path.name})")
+            herd.event(t, f"Added {len(cands)} static false positives to the exclude zones ({path.name})")
         self._apply_static = False
 
     def _run(self):
@@ -376,7 +376,7 @@ class LiveEngine:
         self._static = StaticDetector(min_s=self.cfg.static_min_s, max_ratio=self.cfg.static_max_ratio)
         self._static_t, self._static_seen, self.static_candidates = 0.0, set(), []
         cfg = self.cfg
-        self.log(f"입력 열기: {cfg.source}")
+        self.log(f"Opening input: {cfg.source}")
         src = FrameSource(cfg, log=self.log)
         if self._yolo is None:
             self._load_models()
@@ -409,10 +409,10 @@ class LiveEngine:
                 self._recount = False
                 herd.reset()
                 trails.clear()
-                self.log("마릿수 다시 세기 (등록 단계 재시작)")
+                self.log("Recounting herd (restarting enrollment)")
             item = src.read()
             if item is None:
-                self.log("영상 끝")
+                self.log("End of video")
                 break
             fno, t, frame = item
             if fno == "wait":
@@ -421,7 +421,7 @@ class LiveEngine:
             tic = time.time()
             H, W = frame.shape[:2]
             self.raw_frame = frame
-            # 1) 검출 + 추적
+            # 1) detection + tracking
             res = self._yolo.track(frame, persist=True, tracker=self._tracker_yaml, imgsz=cfg.imgsz, conf=cfg.conf,
                                    iou=cfg.iou, classes=self._classes, agnostic_nms=True,
                                    device=cfg.device if self._dev == "cuda" else "cpu", verbose=False)[0]
@@ -433,8 +433,8 @@ class LiveEngine:
                 xyxy = res.boxes.xyxy.cpu().numpy()
                 ids = res.boxes.id.cpu().numpy().astype(int)
                 confs = res.boxes.conf.cpu().numpy()
-                self.last_boxes = xyxy.copy()       # 영역 편집 창 참고용 (필터 전)
-                # 검출 영역(ROI) · 크기 필터: 축사 밖 / 흐린 배경의 오검출 제거
+                self.last_boxes = xyxy.copy()       # reference for the zone editor (before filtering)
+                # detection zone (ROI) / size filter: remove false positives outside the pen / in blurred background
                 if self._zf is None or self._zf_size != (W, H):
                     self._load_zones(W, H)
                 keep = np.array([self._zf.keep(b) and (herd.phase != "track" or
@@ -446,7 +446,7 @@ class LiveEngine:
                     x1, y1, x2, y2 = np.clip(b, 0, [W, H, W, H]).astype(int)
                     mot = float(diff[y1:y2, x1:x2].mean()) if diff is not None and x2 > x1 and y2 > y1 else 0.0
                     dets.append((self._gen * 1_000_000 + int(i), tuple(map(float, b)), float(c), float(o), mot))
-            # 2) ReID (reid_every 프레임마다, 가림 적은 박스만)
+            # 2) ReID (every reid_every frames, only for lightly occluded boxes)
             embs = {}
             if self._reid is not None and n_proc % max(1, cfg.reid_every) == 0:
                 sel = [d for d in dets if d[3] < 0.3 and d[2] >= 0.3]
@@ -457,9 +457,9 @@ class LiveEngine:
             dt = 0.0 if t_prev is None else t - t_prev
             t_prev = t
             self._static_step(herd, [d[1] for d in dets], dt, t, W, H)
-            # 3) 마릿수 / ID
+            # 3) herd count / IDs
             out = herd.step(t, dets, embs, dt)
-            # 4) 그리기 + 저장
+            # 4) drawing + output
             canvas, rows = self._draw(frame, out, herd, trails, t, src, fps_ema)
             if writer is not None:
                 for r in rows:
@@ -475,7 +475,7 @@ class LiveEngine:
             self.status = self._status(herd, src, fps_ema, t, fno, rows)
             self.latest = (canvas, self.status)
             last_frame_no = fno
-            # 파일 실시간 속도 맞춤
+            # match original speed for files in realtime mode
             if not src.stream and cfg.realtime:
                 lag = t - (time.time() - t_wall0)
                 if lag > 0:
@@ -491,9 +491,9 @@ class LiveEngine:
         self.status["finished"] = True
         self.status["frames"] = last_frame_no + 1
         self.status["wall_s"] = time.time() - t_wall0
-        self.log(f"종료. 결과: {out_dir}" if (cfg.save_csv or cfg.save_video) else "종료")
+        self.log(f"Finished. Results: {out_dir}" if (cfg.save_csv or cfg.save_video) else "Finished")
 
-    # ---------------- 표시
+    # ---------------- Display
     def _draw(self, frame, out, herd: OnlineHerd, trails, t, src, fps_ema):
         cfg = self.cfg
         img = self._zf.draw(frame.copy()) if cfg.show_zones and self._zf is not None else frame.copy()
@@ -516,7 +516,7 @@ class LiveEngine:
             cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
             owner, tr = trails.get(s.sid, (None, []))
             if owner != key or (tr and t - tr[-1][0] > cfg.interp_max_gap_s):
-                tr = []                      # 다른 트랙으로 바뀌었거나 오래 안 보였으면 궤적 새로 시작
+                tr = []                      # restart the trail if switched to another track or unseen for long
             trails[s.sid] = (key, tr)
             tr.append((t, cx, cy))
             while tr and t - tr[0][0] > cfg.trail_s:
@@ -528,7 +528,7 @@ class LiveEngine:
             cv2.circle(img, (x2 - 7, y1 + 8), 5, STATE_COLORS[a.state], -1, cv2.LINE_AA)
             rows.append(SimpleNamespace(tid=s.sid, box=box, conf=conf, state=a.state, speed=a.speed,
                                         dist_cum=a.dist, activity=a.activity))
-        # 상단 배너
+        # top banner
         if herd.phase == "enroll":
             n_now = sum(1 for o in out if o[2] >= cfg.count_conf)
             txt = f"COUNTING  {t - (herd.t0 or t):4.0f}/{cfg.enroll_s:.0f}s   now {n_now}"
@@ -576,7 +576,7 @@ class LiveEngine:
 
 
 class _VideoWriter:
-    """ffmpeg 가 있으면 H.264, 없으면 OpenCV mp4v."""
+    """H.264 if ffmpeg is available, otherwise OpenCV mp4v."""
 
     def __init__(self, path, w, h, fps):
         self.proc = self.vw = None

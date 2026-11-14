@@ -1,14 +1,14 @@
-"""학습 데이터 자동 구축 (Pseudo-labeling / Knowledge distillation).
+"""Automatic training-data construction (pseudo-labeling / knowledge distillation).
 
-대형 COCO 모델(teacher, YOLO11x + TTA, 고해상도)로 축사 영상 프레임을 자동 라벨링하여
-'hanwoo' 단일 클래스 YOLO 데이터셋을 만든다. 이후 경량 모델(student, YOLO11s)을 이 데이터로
-미세조정(fine-tune)하면, 축사 환경(펜스 가림·원거리 소·소/말 혼동)에 특화되면서도 빠른 검출기를 얻는다.
+A large COCO model (teacher: YOLO11x + TTA, high resolution) auto-labels barn video frames to build
+a single-class 'hanwoo' YOLO dataset. Fine-tuning a lightweight model (student: YOLO11s) on it
+yields a fast detector specialised for the barn (fence occlusion, distant cows, cow/horse confusion).
 
-  - 영상 단위로 train / val 분리 (같은 영상 프레임이 양쪽에 섞이면 성능이 과대평가됨)
-  - 프레임 샘플링 간격: 짧은 영상 1초, 긴 영상 3초 (중복 프레임 최소화)
-  - teacher 신뢰도 >= hi(0.4) 는 정답 라벨, lo~hi 사이의 '애매한' 박스는 회색으로 칠해 무시영역(ignore region)
-    처리 → 학습 시 정답도 배경도 아닌 영역이 되어 노이즈 라벨을 막는다.
-  - 사용 클래스: cow(19), horse(17). sheep 은 흰색 사료 곤포(베일)를 오검출하므로 제외
+  - train / val split per video (mixing frames of one video into both sides overestimates performance)
+  - frame sampling interval: 1 s for short videos, 3 s for long ones (minimises duplicate frames)
+  - teacher confidence >= hi (0.4) is a label; 'ambiguous' boxes between lo and hi are painted grey as ignore regions
+    → they become neither object nor background during training, preventing noisy labels.
+  - classes used: cow(19), horse(17). sheep is excluded because it misdetects white feed bales
 
 usage: python scripts/prepare_dataset.py E:/Video/cow --val cow02 cow09
 """
@@ -22,7 +22,7 @@ import cv2
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from hanwoo.config import DATA_DIR  # noqa: E402
 
-ANIMALS = [17, 19]  # horse, cow → '한우' 후보 (sheep 은 곤포 오검출이 많아 제외)
+ANIMALS = [17, 19]  # horse, cow → 'hanwoo' candidates (sheep excluded: many false hits on bales)
 
 
 def main():
@@ -64,7 +64,7 @@ def main():
                 confs = r.boxes.conf.cpu().numpy()
                 amb = (confs >= a.lo) & (confs < a.hi)
                 for x1, y1, x2, y2 in r.boxes.xyxy.cpu().numpy()[amb].astype(int):
-                    frame[y1:y2, x1:x2] = (114, 114, 114)  # ignore region (YOLO letterbox 회색)
+                    frame[y1:y2, x1:x2] = (114, 114, 114)  # ignore region (YOLO letterbox grey)
                 stats[split][2] += int(amb.sum())
                 if True:
                     xywhn = r.boxes.xywhn.cpu().numpy()[confs >= a.hi]

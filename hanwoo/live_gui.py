@@ -1,4 +1,4 @@
-"""PySide6 GUI: 입력 선택 · 파라미터 실시간 튜닝 · 영상/상태 표시."""
+"""PySide6 GUI: input selection · live parameter tuning · video/status display."""
 from __future__ import annotations
 
 import os
@@ -18,60 +18,60 @@ from .config import ROOT, STATE_KO
 from .live import RECOUNT_KEYS, TRACKER_KEYS, LiveConfig, LiveEngine
 from .zones import ZONES_DIR, load_zones, zone_stem, zones_path_for
 
-# (키, 이름, 최소, 최대, 간격, 설명)   — 그룹별
+# (key, label, min, max, step, tooltip)   — per group
 PARAMS = {
-    "검출 (즉시 반영)": [
-        ("conf", "검출 신뢰도 하한", 0.05, 0.95, 0.05, "낮추면 가려진 소도 잡지만 오검출 증가"),
-        ("iou", "NMS IoU", 0.3, 0.9, 0.05, "겹친 박스 제거 기준"),
-        ("imgsz", "입력 크기(px)", 320, 1600, 32, "클수록 작은 소 검출↑, 속도↓"),
-        ("reid_every", "ReID 간격(프레임)", 1, 12, 1, "작을수록 외형 정보↑, 속도↓"),
-        ("min_size_ratio", "최소 크기 비율 (0=끔)", 0, 0.9, 0.05,
-         "박스 높이 / 그 위치의 기대 체고. 먼 배경의 작은 오검출 제거 (가려진 소도 빠질 수 있어 0.3~0.4 권장)"),
+    "Detection (applied immediately)": [
+        ("conf", "Min detection confidence", 0.05, 0.95, 0.05, "Lower catches occluded cattle but adds false positives"),
+        ("iou", "NMS IoU", 0.3, 0.9, 0.05, "Threshold for removing overlapping boxes"),
+        ("imgsz", "Input size (px)", 320, 1600, 32, "Larger finds small cattle better but runs slower"),
+        ("reid_every", "ReID interval (frames)", 1, 12, 1, "Smaller gives more appearance info but runs slower"),
+        ("min_size_ratio", "Min size ratio (0=off)", 0, 0.9, 0.05,
+         "Box height / expected body height at that position. Removes small false positives in the far background (may also drop occluded cattle; 0.3–0.4 recommended)"),
     ],
-    "추적기 BoT-SORT (바꾸면 추적기 재시작)": [
-        ("track_high_thresh", "1차 매칭 신뢰도", 0.1, 0.9, 0.05, ""),
-        ("track_low_thresh", "2차 매칭 신뢰도", 0.01, 0.5, 0.01, ""),
-        ("new_track_thresh", "새 트랙 신뢰도", 0.1, 0.95, 0.05, "높이면 ID 남발 감소"),
-        ("track_buffer", "트랙 기억(프레임)", 10, 600, 10, "가려져도 같은 트랙으로 유지할 시간"),
-        ("match_thresh", "매칭 임계값", 0.5, 0.99, 0.01, ""),
+    "Tracker BoT-SORT (change restarts tracker)": [
+        ("track_high_thresh", "1st-stage match confidence", 0.1, 0.9, 0.05, ""),
+        ("track_low_thresh", "2nd-stage match confidence", 0.01, 0.5, 0.01, ""),
+        ("new_track_thresh", "New track confidence", 0.1, 0.95, 0.05, "Higher reduces spurious new IDs"),
+        ("track_buffer", "Track memory (frames)", 10, 600, 10, "How long a track is kept while occluded"),
+        ("match_thresh", "Match threshold", 0.5, 0.99, 0.01, ""),
     ],
-    "마릿수 카운트 (바꾸면 '다시 세기')": [
-        ("herd_size", "마릿수 N (0=자동)", 0, 200, 1, "알고 있으면 직접 입력하는 것이 가장 정확"),
-        ("enroll_s", "등록 시간(초)", 5, 600, 5, "처음 이 시간 동안 세고 외형 등록"),
-        ("count_conf", "카운트 신뢰도", 0.1, 0.95, 0.05, ""),
-        ("count_stable_s", "유지 시간(초)", 0.2, 30, 0.2, "동시 검출 수가 이만큼 유지돼야 인정"),
-        ("cluster_sim", "외형 군집 유사도", 0.2, 0.95, 0.05, "낮추면 군집 수↓"),
-        ("count_min_track_s", "군집 최소 길이(초)", 0.5, 30, 0.5, ""),
+    "Herd count (change requires 'Recount')": [
+        ("herd_size", "Herd size N (0=auto)", 0, 200, 1, "Entering it directly is most accurate if known"),
+        ("enroll_s", "Enrollment time (s)", 5, 600, 5, "Count and enroll appearances during this initial period"),
+        ("count_conf", "Count confidence", 0.1, 0.95, 0.05, ""),
+        ("count_stable_s", "Hold time (s)", 0.2, 30, 0.2, "Simultaneous detection count must hold this long to be accepted"),
+        ("cluster_sim", "Appearance cluster similarity", 0.2, 0.95, 0.05, "Lower gives fewer clusters"),
+        ("count_min_track_s", "Min cluster track length (s)", 0.5, 30, 0.5, ""),
     ],
-    "ID 배정 (즉시 반영)": [
-        ("confirm_s", "ID 확정 대기(초)", 0.2, 5, 0.1, "새 트랙 외형 수집 시간 = 표시 지연"),
-        ("release_s", "사라짐 판정(초)", 0.2, 10, 0.1, ""),
-        ("id_app_weight", "외형 가중치", 0, 1, 0.05, "나머지는 이동거리 비중"),
-        ("id_radius_bl", "기본 이동 반경(몸길이)", 0.5, 10, 0.25, ""),
-        ("id_speed_bl_s", "초당 추가 반경(몸길이)", 0, 3, 0.05, "사라진 시간에 비례해 커짐"),
-        ("id_gate", "이동 게이트 배수", 1, 5, 0.1, ""),
-        ("id_max_cost", "배정 최대 비용", 0.2, 1.5, 0.05, "넘으면 '?' 로 대기"),
-        ("swap_margin", "뒤바뀜 교정 여유", 0, 1, 0.02, "작을수록 교정을 자주"),
-        ("drift_margin", "외형 교정 여유", 0, 1, 0.02, ""),
-        ("grow_s", "N 증가 대기(초)", 1, 60, 1, ""),
+    "ID assignment (applied immediately)": [
+        ("confirm_s", "ID confirm delay (s)", 0.2, 5, 0.1, "Appearance collection time for new tracks = display delay"),
+        ("release_s", "Missing after (s)", 0.2, 10, 0.1, ""),
+        ("id_app_weight", "Appearance weight", 0, 1, 0.05, "The rest is the motion-distance weight"),
+        ("id_radius_bl", "Base motion radius (body lengths)", 0.5, 10, 0.25, ""),
+        ("id_speed_bl_s", "Extra radius per second (body lengths)", 0, 3, 0.05, "Grows with time missing"),
+        ("id_gate", "Motion gate multiplier", 1, 5, 0.1, ""),
+        ("id_max_cost", "Max assignment cost", 0.2, 1.5, 0.05, "Above this the box waits as '?'"),
+        ("swap_margin", "Swap correction margin", 0, 1, 0.02, "Smaller corrects more often"),
+        ("drift_margin", "Appearance correction margin", 0, 1, 0.02, ""),
+        ("grow_s", "N increase delay (s)", 1, 60, 1, ""),
     ],
-    "고정 오검출 탐지 (배경 물체)": [
-        ("static_min_s", "고정 시간(초)", 10, 3600, 10, "같은 자리에 이 시간 이상 남은 박스를 후보로"),
-        ("static_max_ratio", "크기비 상한", 0.1, 1.0, 0.05, "박스 높이/기대 체고가 이보다 작아야 후보 (누운 소 보호)"),
+    "Static false-positive detection (background objects)": [
+        ("static_min_s", "Static time (s)", 10, 3600, 10, "Boxes staying in place at least this long become candidates"),
+        ("static_max_ratio", "Max size ratio", 0.1, 1.0, 0.05, "Box height / expected body height must be below this to be a candidate (protects lying cattle)"),
     ],
-    "활동량 (즉시 반영)": [
-        ("cow_height_m", "체고(m)", 0.8, 2.0, 0.05, "원근 보정 기준"),
-        ("rest_speed", "휴식 속도 상한(m/s)", 0.01, 0.5, 0.01, ""),
-        ("walk_speed", "보행 속도 하한(m/s)", 0.05, 1.5, 0.01, ""),
-        ("motion_energy_active", "국소활동 움직임", 0.5, 20, 0.5, ""),
-        ("smooth_window_s", "평활 창(초)", 0.2, 5, 0.1, ""),
-        ("trail_s", "궤적 길이(초)", 0, 30, 0.5, ""),
+    "Activity (applied immediately)": [
+        ("cow_height_m", "Body height (m)", 0.8, 2.0, 0.05, "Reference for perspective correction"),
+        ("rest_speed", "Max resting speed (m/s)", 0.01, 0.5, 0.01, ""),
+        ("walk_speed", "Min walking speed (m/s)", 0.05, 1.5, 0.01, ""),
+        ("motion_energy_active", "Local activity motion", 0.5, 20, 0.5, ""),
+        ("smooth_window_s", "Smoothing window (s)", 0.2, 5, 0.1, ""),
+        ("trail_s", "Trail length (s)", 0, 30, 0.5, ""),
     ],
 }
-BOOL_PARAMS = [("auto_grow", "N 자동 증가 (확실한 새 소가 계속 보이면)"),
-               ("show_pending", "ID 대기 중인 박스(?) 표시"),
-               ("show_zones", "검출 영역(제외=빨강, 포함=초록) 표시"),
-               ("static_auto", "고정 오검출 후보를 확인 없이 자동 제외")]
+BOOL_PARAMS = [("auto_grow", "Auto-increase N (when a clearly new animal keeps appearing)"),
+               ("show_pending", "Show boxes awaiting ID (?)"),
+               ("show_zones", "Show detection zones (exclude=red, include=green)"),
+               ("static_auto", "Exclude static false-positive candidates automatically without confirmation")]
 
 
 class MainWindow(QMainWindow):
@@ -82,19 +82,19 @@ class MainWindow(QMainWindow):
         self.engine: LiveEngine | None = None
         self.widgets = {}
         self.log_lines = []
-        self.setWindowTitle("한우 실시간 추적 (webHanwoo Live)")
+        self.setWindowTitle("Hanwoo Live Tracking (webHanwoo Live)")
         self.resize(1500, 860)
 
-        self.video = QLabel("입력을 고르고 [시작] 을 누르세요")
+        self.video = QLabel("Choose an input and press [Start]")
         self.video.setAlignment(Qt.AlignCenter)
         self.video.setMinimumSize(640, 360)
         self.video.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.video.setStyleSheet("background:#111;color:#aaa;font-size:16px")
 
         tabs = QTabWidget()
-        tabs.addTab(self._tab_input(), "입력")
-        tabs.addTab(self._tab_params(), "파라미터")
-        tabs.addTab(self._tab_status(), "상태")
+        tabs.addTab(self._tab_input(), "Input")
+        tabs.addTab(self._tab_params(), "Parameters")
+        tabs.addTab(self._tab_status(), "Status")
         self.tabs = tabs
 
         split = QSplitter()
@@ -104,35 +104,35 @@ class MainWindow(QMainWindow):
         split.setStretchFactor(1, 1)
         split.setSizes([1050, 450])
         self.setCentralWidget(split)
-        self.statusBar().showMessage("준비")
+        self.statusBar().showMessage("Ready")
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
         self.timer.start(33)
         self._last_frame = None
 
-    # ------------------------------------------------------------------ 입력 탭
+    # ------------------------------------------------------------------ Input tab
     def _tab_input(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        g = QGroupBox("입력 소스")
+        g = QGroupBox("Input source")
         f = QVBoxLayout(g)
-        self.rb_file, self.rb_rtsp, self.rb_cam = QRadioButton("영상 파일"), QRadioButton("RTSP 카메라"), QRadioButton("웹캠")
+        self.rb_file, self.rb_rtsp, self.rb_cam = QRadioButton("Video file"), QRadioButton("RTSP camera"), QRadioButton("Webcam")
         bg = QButtonGroup(self)
         for rb in (self.rb_file, self.rb_rtsp, self.rb_cam):
             bg.addButton(rb)
         src = self.cfg.source
         h = QHBoxLayout()
         self.ed_file = QLineEdit(src if not src.lower().startswith("rtsp") and not src.isdigit() else "")
-        b = QPushButton("찾기…")
+        b = QPushButton("Browse…")
         b.clicked.connect(self._browse)
         h.addWidget(self.ed_file)
         h.addWidget(b)
         self.ed_rtsp = QLineEdit(src if src.lower().startswith("rtsp") else "")
-        self.ed_rtsp.setPlaceholderText("rtsp://사용자:비밀번호@192.168.0.10:554/stream1")
+        self.ed_rtsp.setPlaceholderText("rtsp://user:password@192.168.0.10:554/stream1")
         self.sp_cam = QSpinBox()
         self.sp_cam.setRange(0, 9)
-        self.cb_tcp = QCheckBox("RTSP 를 TCP 로 받기 (끊김·깨짐 줄임)")
+        self.cb_tcp = QCheckBox("Receive RTSP over TCP (fewer drops/artifacts)")
         self.cb_tcp.setChecked(self.cfg.rtsp_tcp)
         f.addWidget(self.rb_file)
         f.addLayout(h)
@@ -144,14 +144,14 @@ class MainWindow(QMainWindow):
         (self.rb_rtsp if src.lower().startswith("rtsp") else self.rb_cam if src.isdigit() else self.rb_file).setChecked(True)
         lay.addWidget(g)
 
-        gz = QGroupBox("검출 영역 (축사 밖·흐린 배경 오검출 제거)")
+        gz = QGroupBox("Detection zones (remove false positives outside the pen / in blurred background)")
         fz = QVBoxLayout(gz)
         self.lb_zone = QLabel("-")
         self.lb_zone.setWordWrap(True)
-        bz = QPushButton("영역 편집…  (다각형 그리기)")
+        bz = QPushButton("Edit zones…  (draw polygons)")
         bz.clicked.connect(self._edit_zones)
-        self.bt_static = QPushButton("고정 오검출 제외 (후보 0)")
-        self.bt_static.setToolTip("같은 자리에 오래 고정된 작은 박스(구유·사료통 등 배경 물체)를 제외 영역에 추가")
+        self.bt_static = QPushButton("Exclude static false positives (candidates 0)")
+        self.bt_static.setToolTip("Add small boxes that stay in one place for a long time (troughs, feed bins and other background objects) to the exclude zones")
         self.bt_static.clicked.connect(self._apply_static)
         self.bt_static.setEnabled(False)
         fz.addWidget(self.lb_zone)
@@ -163,26 +163,26 @@ class MainWindow(QMainWindow):
         for rb in (self.rb_file, self.rb_rtsp, self.rb_cam):
             rb.toggled.connect(lambda _v: self._zone_label())
 
-        g2 = QGroupBox("실행 옵션")
+        g2 = QGroupBox("Run options")
         f2 = QVBoxLayout(g2)
-        self.cb_realtime = QCheckBox("파일을 원래 속도로 재생 (끄면 최대 속도로 처리)")
+        self.cb_realtime = QCheckBox("Play files at original speed (off = process as fast as possible)")
         self.cb_realtime.setChecked(self.cfg.realtime)
         self.cb_realtime.toggled.connect(lambda v: self._set("realtime", v))
-        self.cb_loop = QCheckBox("파일 반복 재생")
+        self.cb_loop = QCheckBox("Loop file playback")
         self.cb_loop.setChecked(self.cfg.loop_file)
         self.cb_loop.toggled.connect(lambda v: self._set("loop_file", v))
-        self.cb_csv = QCheckBox("CSV 저장 (프레임별 ID·활동량, 요약)")
+        self.cb_csv = QCheckBox("Save CSV (per-frame IDs/activity, summary)")
         self.cb_csv.setChecked(self.cfg.save_csv)
-        self.cb_video = QCheckBox("결과 영상 저장 (mp4)")
+        self.cb_video = QCheckBox("Save result video (mp4)")
         self.cb_video.setChecked(self.cfg.save_video)
         for c in (self.cb_realtime, self.cb_loop, self.cb_csv, self.cb_video):
             f2.addWidget(c)
         lay.addWidget(g2)
 
         h2 = QHBoxLayout()
-        self.bt_start = QPushButton("▶ 시작")
-        self.bt_pause = QPushButton("❚❚ 일시정지")
-        self.bt_stop = QPushButton("■ 정지")
+        self.bt_start = QPushButton("▶ Start")
+        self.bt_pause = QPushButton("❚❚ Pause")
+        self.bt_stop = QPushButton("■ Stop")
         self.bt_pause.setCheckable(True)
         self.bt_start.clicked.connect(self.start)
         self.bt_pause.toggled.connect(self._pause)
@@ -191,10 +191,10 @@ class MainWindow(QMainWindow):
             b.setMinimumHeight(36)
             h2.addWidget(b)
         lay.addLayout(h2)
-        self.bt_recount = QPushButton("↻ 마릿수 다시 세기 (등록 단계 재시작)")
+        self.bt_recount = QPushButton("↻ Recount herd (restart enrollment)")
         self.bt_recount.clicked.connect(lambda: self.engine and self.engine.recount())
         lay.addWidget(self.bt_recount)
-        self.bt_out = QPushButton("결과 폴더 열기")
+        self.bt_out = QPushButton("Open output folder")
         self.bt_out.clicked.connect(self._open_out)
         lay.addWidget(self.bt_out)
         lay.addStretch(1)
@@ -213,13 +213,13 @@ class MainWindow(QMainWindow):
             return
         p = self._zone_path()
         z = load_zones(p) if p.exists() else dict(include=[], exclude=[])
-        self.lb_zone.setText(f"{p.name}: 제외 {len(z['exclude'])}개, 포함 {len(z['include'])}개"
-                             if p.exists() else f"영역 없음 (저장하면 {p.name})")
+        self.lb_zone.setText(f"{p.name}: {len(z['exclude'])} exclude, {len(z['include'])} include"
+                             if p.exists() else f"No zones (saved as {p.name})")
 
     def _apply_static(self):
         if self.engine and self.engine.running():
             self.engine.update({"static_apply": True})
-            self.statusBar().showMessage("고정 오검출 후보를 제외 영역에 추가합니다", 5000)
+            self.statusBar().showMessage("Adding static false-positive candidates to the exclude zones", 5000)
             QTimer.singleShot(1500, self._zone_label)
 
     def _edit_zones(self):
@@ -232,7 +232,7 @@ class MainWindow(QMainWindow):
             boxes = [tuple(b) for b in getattr(eng, "last_boxes", [])]
         else:
             if not self.cfg.source:
-                QMessageBox.warning(self, "입력 없음", "먼저 영상 파일이나 RTSP 주소를 입력하세요.")
+                QMessageBox.warning(self, "No input", "Enter a video file or RTSP address first.")
                 return
             frame, boxes = grab_frame(self.cfg.source), []
         dlg = ZoneDialog(frame, path, boxes, self)
@@ -241,11 +241,11 @@ class MainWindow(QMainWindow):
                 self._set("zones_file", str(dlg.path))
             if self.engine and self.engine.running():
                 self.engine.update({"zones_reload": True})
-                self.statusBar().showMessage("검출 영역 적용 (다음 프레임부터)", 5000)
+                self.statusBar().showMessage("Detection zones applied (from the next frame)", 5000)
             self._zone_label()
 
     def _browse(self):
-        p, _ = QFileDialog.getOpenFileName(self, "영상 선택", str(Path(self.ed_file.text()).parent if self.ed_file.text() else ROOT),
+        p, _ = QFileDialog.getOpenFileName(self, "Select video", str(Path(self.ed_file.text()).parent if self.ed_file.text() else ROOT),
                                            "Video (*.mp4 *.avi *.mkv *.mov *.ts);;All (*.*)")
         if p:
             self.ed_file.setText(p)
@@ -257,13 +257,13 @@ class MainWindow(QMainWindow):
         Path(d).mkdir(parents=True, exist_ok=True)
         os.startfile(str(d))
 
-    # ------------------------------------------------------------------ 파라미터 탭
+    # ------------------------------------------------------------------ Parameters tab
     def _tab_params(self):
         inner = QWidget()
         lay = QVBoxLayout(inner)
         h = QHBoxLayout()
-        for text, fn in (("프리셋 불러오기", self._load_preset), ("프리셋 저장", self._save_preset),
-                         ("기본값으로", self._defaults)):
+        for text, fn in (("Load preset", self._load_preset), ("Save preset", self._save_preset),
+                         ("Reset to defaults", self._defaults)):
             b = QPushButton(text)
             b.clicked.connect(fn)
             h.addWidget(b)
@@ -292,13 +292,13 @@ class MainWindow(QMainWindow):
                 lb.setToolTip(tip)
                 form.addRow(lb, sp)
                 self.widgets[key] = sp
-            if group.startswith("마릿수"):
+            if group.startswith("Herd count"):
                 cm = QComboBox()
                 cm.addItems(["max", "sim", "cluster"])
                 cm.setCurrentText(self.cfg.count_mode)
-                cm.setToolTip("sim=동시 검출 수, cluster=외형 군집 수, max=둘 중 큰 값")
+                cm.setToolTip("sim=simultaneous detections, cluster=appearance clusters, max=larger of the two")
                 cm.currentTextChanged.connect(lambda v: self._set("count_mode", v))
-                form.addRow(QLabel("마릿수 결정 방식"), cm)
+                form.addRow(QLabel("Herd count mode"), cm)
                 self.widgets["count_mode"] = cm
             if group.startswith("ID"):
                 for key, name in BOOL_PARAMS:
@@ -320,7 +320,7 @@ class MainWindow(QMainWindow):
         setattr(self.cfg, key, val)
         if self.engine and self.engine.running():
             self.engine.update({key: val})
-            note = " → 추적기 재시작" if key in TRACKER_KEYS else (" → '다시 세기' 를 눌러 적용" if key in RECOUNT_KEYS and key != "herd_size" else "")
+            note = " → tracker restarted" if key in TRACKER_KEYS else (" → press 'Recount' to apply" if key in RECOUNT_KEYS and key != "herd_size" else "")
             self.statusBar().showMessage(f"{key} = {val}{note}", 5000)
 
     def _refresh_widgets(self):
@@ -338,20 +338,20 @@ class MainWindow(QMainWindow):
                 self.engine.update({k: getattr(self.cfg, k)})
 
     def _load_preset(self):
-        p, _ = QFileDialog.getOpenFileName(self, "프리셋 불러오기", str(ROOT / "configs"), "JSON (*.json)")
+        p, _ = QFileDialog.getOpenFileName(self, "Load preset", str(ROOT / "configs"), "JSON (*.json)")
         if p:
             src = self.cfg.source
             self.cfg.__dict__.update(asdict(LiveConfig.load(p)))
             self.cfg.source = src
             self._refresh_widgets()
-            self.statusBar().showMessage(f"불러옴: {p}", 5000)
+            self.statusBar().showMessage(f"Loaded: {p}", 5000)
 
     def _save_preset(self):
-        p, _ = QFileDialog.getSaveFileName(self, "프리셋 저장", str(ROOT / "configs" / "live_my.json"), "JSON (*.json)")
+        p, _ = QFileDialog.getSaveFileName(self, "Save preset", str(ROOT / "configs" / "live_my.json"), "JSON (*.json)")
         if p:
             self._collect_source()
             self.cfg.save(p)
-            self.statusBar().showMessage(f"저장: {p}", 5000)
+            self.statusBar().showMessage(f"Saved: {p}", 5000)
 
     def _defaults(self):
         src = self.cfg.source
@@ -359,7 +359,7 @@ class MainWindow(QMainWindow):
         self.cfg.source = src
         self._refresh_widgets()
 
-    # ------------------------------------------------------------------ 상태 탭
+    # ------------------------------------------------------------------ Status tab
     def _tab_status(self):
         w = QWidget()
         lay = QVBoxLayout(w)
@@ -373,19 +373,19 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.lb_count)
         lay.addWidget(self.lb_info)
         self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["ID", "상태", "속도 m/s", "이동 m", "활동지수", "사라짐(초)"])
+        self.table.setHorizontalHeaderLabels(["ID", "State", "Speed m/s", "Distance m", "Activity index", "Missing (s)"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         lay.addWidget(self.table, 3)
-        lay.addWidget(QLabel("이벤트 (ID 교정 · 재등장 · 마릿수 변경)"))
+        lay.addWidget(QLabel("Events (ID corrections · re-appearances · herd size changes)"))
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(2000)
         lay.addWidget(self.log, 2)
         return w
 
-    # ------------------------------------------------------------------ 실행
+    # ------------------------------------------------------------------ Run
     def _collect_source(self):
         if self.rb_file.isChecked():
             self.cfg.source = self.ed_file.text().strip()
@@ -409,14 +409,14 @@ class MainWindow(QMainWindow):
     def start(self):
         self._collect_source()
         if not self.cfg.source:
-            QMessageBox.warning(self, "입력 없음", "영상 파일이나 RTSP 주소를 입력하세요.")
+            QMessageBox.warning(self, "No input", "Enter a video file or RTSP address.")
             return
         if self.rb_file.isChecked() and not Path(self.cfg.source).exists():
-            QMessageBox.warning(self, "파일 없음", f"파일을 찾을 수 없습니다:\n{self.cfg.source}")
+            QMessageBox.warning(self, "File not found", f"Cannot find file:\n{self.cfg.source}")
             return
         old = self.engine
         self.engine = LiveEngine(self.cfg, log=self._log)
-        if old is not None and old._yolo is not None:       # 모델 재사용 (로딩 시간 절약)
+        if old is not None and old._yolo is not None:       # reuse models (saves loading time)
             self.engine._yolo, self.engine._reid = old._yolo, old._reid
             self.engine._classes, self.engine._dev = old._classes, old._dev
             self.engine._yolo.predictor = None
@@ -425,21 +425,21 @@ class MainWindow(QMainWindow):
         self._buttons(True)
         self.bt_pause.setChecked(False)
         self.tabs.setCurrentIndex(2)
-        self.statusBar().showMessage("모델 로딩 / 입력 연결 중…")
+        self.statusBar().showMessage("Loading models / connecting to input…")
 
     def _pause(self, on):
         if self.engine:
             self.engine.pause(on)
-            self.bt_pause.setText("▶ 계속" if on else "❚❚ 일시정지")
+            self.bt_pause.setText("▶ Resume" if on else "❚❚ Pause")
 
     def stop(self):
         if self.engine:
-            self.statusBar().showMessage("정지 중… (결과 저장)")
+            self.statusBar().showMessage("Stopping… (saving results)")
             QApplication.processEvents()
             self.engine.stop()
         self._buttons(False)
 
-    def _log(self, msg):  # 엔진 스레드에서 호출 → 큐에 쌓고 타이머가 표시
+    def _log(self, msg):  # called from the engine thread → queued, shown by the timer
         self.log_lines.append(f"{time.strftime('%H:%M:%S')}  {msg}")
 
     def _tick(self):
@@ -450,10 +450,10 @@ class MainWindow(QMainWindow):
             return
         if eng.error:
             err, eng.error = eng.error, None
-            QMessageBox.critical(self, "오류", err[:2000])
+            QMessageBox.critical(self, "Error", err[:2000])
         if not eng.running() and self.bt_stop.isEnabled():
             self._buttons(False)
-            self.statusBar().showMessage("종료됨")
+            self.statusBar().showMessage("Finished")
         lt = eng.latest
         if lt is None or lt is self._last_frame:
             return
@@ -467,22 +467,22 @@ class MainWindow(QMainWindow):
 
     def _update_status(self, st):
         if st["phase"] == "enroll":
-            self.lb_count.setText(f"마릿수 세는 중…  남은 {st['enroll_left']:.0f}초")
+            self.lb_count.setText(f"Counting herd…  {st['enroll_left']:.0f}s left")
         else:
-            self.lb_count.setText(f"마릿수 N = {st['N']}   보임 {st['visible']}   사라짐 {st['N'] - st['visible']}")
-        src = "스트림" + (" (연결됨)" if st["connected"] else " (연결 끊김)") if st["stream"] else \
-            f"파일 {st['frame']}/{st['n_frames']} 프레임"
-        cnt = f"등록 결과: 동시검출 {st['n_sim']} · 외형군집 {st['n_clu']}" if st["phase"] == "track" else ""
-        self.lb_info.setText(f"{src}   t={st['t']:.1f}s   처리 {st['fps']:.1f} fps (원본 {st['src_fps']:.0f} fps)"
-                             + (f"   버린 프레임 {st['dropped']}" if st["stream"] else "")
-                             + f"\n영역·크기 필터로 제외한 박스 {st.get('filtered', 0)}   {cnt}")
+            self.lb_count.setText(f"Herd N = {st['N']}   visible {st['visible']}   missing {st['N'] - st['visible']}")
+        src = "Stream" + (" (connected)" if st["connected"] else " (disconnected)") if st["stream"] else \
+            f"File frame {st['frame']}/{st['n_frames']}"
+        cnt = f"Enrollment: simultaneous {st['n_sim']} · appearance clusters {st['n_clu']}" if st["phase"] == "track" else ""
+        self.lb_info.setText(f"{src}   t={st['t']:.1f}s   processing {st['fps']:.1f} fps (source {st['src_fps']:.0f} fps)"
+                             + (f"   dropped frames {st['dropped']}" if st["stream"] else "")
+                             + f"\nBoxes removed by zone/size filters {st.get('filtered', 0)}   {cnt}")
         n_st = st.get("static", 0)
-        self.bt_static.setText(f"고정 오검출 제외 (후보 {n_st})")
+        self.bt_static.setText(f"Exclude static false positives (candidates {n_st})")
         self.bt_static.setEnabled(n_st > 0)
         ids = st["ids"]
         self.table.setRowCount(len(ids))
         for r, d in enumerate(ids):
-            vals = [str(d["id"]), STATE_KO[d["state"]] if d["visible"] else "안 보임", f"{d['speed']:.2f}",
+            vals = [str(d["id"]), STATE_KO[d["state"]] if d["visible"] else "Not visible", f"{d['speed']:.2f}",
                     f"{d['dist']:.1f}", f"{d['activity']:.0f}", "" if d["visible"] else f"{d['missing_s']:.0f}"]
             for c, v in enumerate(vals):
                 it = QTableWidgetItem(v)
@@ -490,7 +490,7 @@ class MainWindow(QMainWindow):
                 if not d["visible"]:
                     it.setForeground(Qt.gray)
                 self.table.setItem(r, c, it)
-        self.statusBar().showMessage("실행 중" if self.engine.running() else "종료됨")
+        self.statusBar().showMessage("Running" if self.engine.running() else "Finished")
 
     def closeEvent(self, e):
         if self.engine and self.engine.running():

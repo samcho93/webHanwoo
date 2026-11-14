@@ -1,15 +1,15 @@
-"""2단계: 오프라인 ID 정합 (Tracklet stitching).
+"""Stage 2: offline ID linking (tracklet stitching).
 
-온라인 추적기(BoT-SORT)는 펜스·기둥 가림, 소끼리 겹침 때문에 같은 소에게
-여러 개의 ID 를 부여하기 쉽다. 축사는 '닫힌 공간 + 고정 카메라' 이므로
-영상 전체를 본 뒤(offline) 끊어진 tracklet 들을 다시 이어붙이면 ID 일관성이 크게 좋아진다.
+The online tracker (BoT-SORT) tends to give the same cow several IDs because of fence/pillar
+occlusion and cows overlapping each other. A barn is a closed space with a fixed camera, so
+re-joining broken tracklets after seeing the whole video (offline) greatly improves ID consistency.
 
-  1) 짧은 tracklet(노이즈) 제거
-  2) 원근 모델  h(y) = a*y + b  (화면 위쪽일수록 소가 작게 보임)
-  3) tracklet i 의 '끝'  ↔  tracklet j 의 '시작' 비용 행렬
-        cost = (1-w)·거리비용(원근 정규화, 시간에 비례해 허용반경 증가) + w·외형거리(Bhattacharyya)
-  4) Hungarian 알고리즘으로 1:1 최적 연결 → 비용이 임계값 이하인 것만 병합 (수렴할 때까지 반복)
-  5) ID 재부여(1..N) + 짧은 공백 선형 보간
+  1) drop short tracklets (noise)
+  2) perspective model  h(y) = a*y + b  (cows look smaller towards the top of the image)
+  3) cost matrix: 'end' of tracklet i  ↔  'start' of tracklet j
+        cost = (1-w)·distance cost (perspective-normalised, allowed radius grows with time) + w·appearance distance (Bhattacharyya)
+  4) optimal 1:1 links via the Hungarian algorithm → merge only those below the cost threshold (repeat until convergence)
+  5) renumber IDs (1..N) + linear interpolation of short gaps
 """
 from __future__ import annotations
 
@@ -21,12 +21,12 @@ from scipy.optimize import linear_sum_assignment
 from .config import PipelineConfig
 
 
-# --------------------------------------------------------------------------- 원근 모델
+# --------------------------------------------------------------------------- perspective model
 def fit_perspective(df: pd.DataFrame):
-    """bbox 높이 vs 화면 y 좌표의 선형 관계를 robust 하게 적합.
+    """Robustly fit a linear relation between bbox height and image y.
 
-    가림 때문에 bbox 가 잘린 경우가 많으므로 y 구간별 상위 75% 분위 높이를 사용한다.
-    반환: (a, b)  →  h(y) = a*y + b   [px]
+    Boxes are often truncated by occlusion, so the 75th-percentile height per y bin is used.
+    Returns: (a, b)  →  h(y) = a*y + b   [px]
     """
     cy = ((df.y1 + df.y2) / 2).to_numpy()
     h = (df.y2 - df.y1).to_numpy()
@@ -40,7 +40,7 @@ def fit_perspective(df: pd.DataFrame):
             xs.append(np.median(cy[m]))
             ys.append(np.quantile(h[m], 0.75))
     a, b = np.polyfit(xs, ys, 1)
-    if a <= 0:  # 비정상 → 상수 모델
+    if a <= 0:  # degenerate → constant model
         a, b = 0.0, float(np.median(ys))
     return float(a), float(b)
 
@@ -50,7 +50,7 @@ def body_px(y, persp):
     return np.maximum(a * np.asarray(y) + b, 20.0)
 
 
-# --------------------------------------------------------------------------- tracklet 요약
+# --------------------------------------------------------------------------- tracklet summary
 def _summaries(df: pd.DataFrame, feats: dict):
     out = {}
     for tid, g in df.groupby("tid"):
@@ -76,7 +76,7 @@ def _app_dist(a, b):
 
 
 def stitch_stages(cfg: PipelineConfig):
-    """(이름, 최대공백s, 기본반경BL, 속도BL/s, 외형가중치, 최대비용) — 1차: 짧은 끊김, 2차: 장시간 재등장"""
+    """(name, max gap s, base radius BL, speed BL/s, appearance weight, max cost) - pass 1: short gaps, pass 2: long-term reappearance"""
     return [
         ("short", cfg.stitch_max_gap_s, cfg.stitch_max_dist_bl, cfg.stitch_speed_bl_s,
          cfg.stitch_app_weight, cfg.stitch_max_cost),
@@ -86,9 +86,9 @@ def stitch_stages(cfg: PipelineConfig):
 
 
 def stitch_tracklets(df: pd.DataFrame, feats: dict, fps: float, cfg: PipelineConfig, persp, stages=("short", "long")):
-    """2단계(짧은 끊김 → 장시간 재등장) tracklet 병합. 반환: (df, feats, 병합 로그)
+    """Two-pass (short gaps → long-term reappearance) tracklet merging. Returns: (df, feats, merge log)
 
-    ReID 기반 고정 개체군 배정(identity.py)을 쓸 때는 1차("short")만 수행하고 장시간 재등장은 배정 단계가 담당한다.
+    With ReID fixed-herd assignment (identity.py) only pass 1 ("short") runs; long-term reappearance is handled by the assignment stage.
     """
     log = []
     for stage in stitch_stages(cfg):
@@ -103,7 +103,7 @@ def _stitch_stage(df, feats, fps, persp, stage, max_gap_s, dist_bl, speed_bl_s, 
     df = df.copy()
     max_gap = int(max_gap_s * fps)
     log = []
-    for _it in range(10):  # 연결이 더 이상 없을 때까지 반복
+    for _it in range(10):  # repeat until no more links
         S = _summaries(df, feats)
         tids = sorted(S)
         n = len(tids)
@@ -132,7 +132,7 @@ def _stitch_stage(df, feats, fps, persp, stage, max_gap_s, dist_bl, speed_bl_s, 
         links = [(tids[r], tids[c], C[r, c]) for r, c in zip(rows, cols) if C[r, c] < max_cost]
         if not links:
             break
-        # 체인(i→j→k)을 한 번에 처리하기 위해 union-find 형태로 루트 ID 로 치환
+        # map to root IDs union-find style so chains (i→j→k) are handled at once
         parent = {}
         for a, b, c in links:
             parent[b] = a
@@ -144,16 +144,16 @@ def _stitch_stage(df, feats, fps, persp, stage, max_gap_s, dist_bl, speed_bl_s, 
             return t
 
         new_tid = df.tid.map(lambda t: root(t))
-        # feats 키도 갱신
+        # update feats keys too
         feats = {(f, root(t)): v for (f, t), v in feats.items()}
         df["tid"] = new_tid
-        # 동일 프레임 중복(이론상 없음) 방지
+        # guard against duplicates in the same frame (shouldn't happen)
         df = df.sort_values("conf", ascending=False).drop_duplicates(["frame", "tid"]).sort_values(["frame", "tid"])
     return df.reset_index(drop=True), feats, log
 
 
 def relabel_and_interpolate(df: pd.DataFrame, fps: float, cfg: PipelineConfig):
-    """ID 를 등장 순서대로 1..N 으로 재부여하고, 짧은 공백은 선형 보간."""
+    """Renumber IDs 1..N in order of appearance and linearly interpolate short gaps."""
     first = df.groupby("tid").agg(f0=("frame", "min"), x=("x1", "first")).sort_values(["f0", "x"])
     mapping = {old: i + 1 for i, old in enumerate(first.index)}
     df = df.copy()
@@ -167,7 +167,7 @@ def relabel_and_interpolate(df: pd.DataFrame, fps: float, cfg: PipelineConfig):
         missing = np.setdiff1d(full, g.index)
         if len(missing):
             gg = g.reindex(full)
-            # 공백 길이 계산 → max_gap 이하만 보간
+            # compute gap length → interpolate only gaps <= max_gap
             isna = gg.x1.isna().to_numpy()
             run_id = np.cumsum(~isna)
             run_len = pd.Series(isna).groupby(run_id).transform("sum").to_numpy()

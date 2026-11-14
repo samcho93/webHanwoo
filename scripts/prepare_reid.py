@@ -1,17 +1,17 @@
-"""ReID 학습 데이터 생성: 추적 결과를 '자기지도 라벨'로 사용해 소 crop 을 모은다.
+"""Build ReID training data: collect cow crops using tracking results as 'self-supervised labels'.
 
-라벨 원리 (사람 라벨링 없음)
-  - 같은 tracklet(또는 정합된 ID) 안의 crop  → 같은 소 (positive)
-  - 같은 시각에 동시에 존재하는 다른 tracklet → 반드시 다른 소 (negative)
+Labelling principle (no human labelling)
+  - crops within the same tracklet (or linked ID)  → same cow (positive)
+  - different tracklets present at the same time  → necessarily different cows (negative)
 
-  mode "id"       : 짧은 영상 → 오프라인 정합 결과(tracks_activity.csv)의 최종 ID 를 라벨로 사용
-  mode "tracklet" : 긴 영상   → 정합 전 tracklet(tracks_raw.csv) 을 라벨로 사용 (같은 소가 여러 tracklet 일 수 있으므로
-                                학습 시 '동시에 존재하는 tracklet 끼리만' 비교)
+  mode "id"       : short videos → final IDs of the offline linking result (tracks_activity.csv) as labels
+  mode "tracklet" : long videos  → pre-linking tracklets (tracks_raw.csv) as labels (one cow may span several tracklets, so
+                                training compares only tracklets that coexist in time)
 
-깨끗한 crop 만 사용: conf ≥ 0.5, 보간 프레임 제외, 다른 소와 IoU < 0.15 (겹침 없음), 높이 ≥ 24px
+Clean crops only: conf ≥ 0.5, no interpolated frames, IoU < 0.15 with other cows (no overlap), height ≥ 24px
 
-사용:  python scripts/prepare_reid.py E:/Video/cow
-출력:  data/reid/<영상>.npz  (imgs uint8 N×128×128×3, label, frame, mode)
+Usage:  python scripts/prepare_reid.py E:/Video/cow
+Output: data/reid/<video>.npz  (imgs uint8 N×128×128×3, label, frame, mode)
 """
 import argparse
 import sys
@@ -41,10 +41,10 @@ def load_labels(name: str, long_video: bool, min_tracklet_s: float, fps: float):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("videos", help="영상 폴더")
+    ap.add_argument("videos", help="video folder")
     ap.add_argument("--out", default=str(DATA_DIR / "reid"))
-    ap.add_argument("--long-s", type=float, default=300, help="이 길이(초) 이상이면 tracklet 모드")
-    ap.add_argument("--crops-per-s", type=float, default=4, help="ID 당 초당 crop 수 (짧은 영상)")
+    ap.add_argument("--long-s", type=float, default=300, help="use tracklet mode for videos at least this long (s)")
+    ap.add_argument("--crops-per-s", type=float, default=4, help="crops per second per ID (short videos)")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -56,7 +56,7 @@ def main():
         dur = cap.get(cv2.CAP_PROP_FRAME_COUNT) / fps
         long_video = dur >= a.long_s
         df, mode = load_labels(name, long_video, 5.0, fps)
-        # 긴 영상은 1초당 1장, 짧은 영상은 crops_per_s 장
+        # long videos: 1 crop per second; short videos: crops_per_s
         every = int(round(fps)) if long_video else max(1, int(round(fps / a.crops_per_s)))
         if dur > 100 and not long_video:
             every *= 2
@@ -83,7 +83,7 @@ def main():
                  frame=df.frame.to_numpy(np.int32), mode=mode, fps=fps)
         print(f"{name}: {mode:8s} every {every:2d}f  crops {len(df):6d}  ids {df.tid.nunique()}")
 
-    # 미리보기 그리드 (강좌용): ID 별 crop 6장
+    # preview grid (for the course): 6 crops per ID
     S = np.load(out / "cow04.npz")
     rows = []
     for lab in np.unique(S["label"])[:8]:

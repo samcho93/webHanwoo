@@ -1,8 +1,9 @@
-"""run.bat / setup.bat 생성기.
+"""Generator for run.bat / setup.bat / live.bat.
 
-Windows cmd 는 배치 파일을 'ANSI 코드페이지(한국어 Windows = CP949)' 로 읽는다.
-UTF-8 + chcp 65001 조합은 한글이 섞이면 줄을 잘못 해석하는 cmd 버그가 있으므로,
-배치 파일은 CP949 + CRLF 로 저장한다.  (수정은 이 파일에서 하고  python scripts/make_bat.py 실행)
+Windows cmd reads batch files in the ANSI code page, and UTF-8 with chcp 65001 has cmd bugs
+that misparse lines containing multi-byte text. The menus are therefore kept pure ASCII and
+written with CRLF line endings, so they work under any code page.
+(Edit the text here, then run  python scripts/make_bat.py)
 """
 from pathlib import Path
 
@@ -16,17 +17,17 @@ set "PORT=8791"
 set "DEFAULT_SRC=E:\Video\cow"
 
 if not exist "%PY%" (
-  echo [오류] 가상환경이 없습니다. 먼저 setup.bat 을 실행하세요.
+  echo [ERROR] Virtual environment not found. Run setup.bat first.
   pause
   exit /b 1
 )
 
-rem ---- 인자 실행 (메뉴 없이)
-rem   run.bat all   [폴더/파일] [마릿수]
-rem   run.bat reuse [폴더/파일] [마릿수]
+rem ---- Run with arguments (no menu)
+rem   run.bat all   [folder/file] [herd size]
+rem   run.bat reuse [folder/file] [herd size]
 rem   run.bat serve
 rem   run.bat build
-rem   run.bat live  [파일 또는 rtsp://주소]
+rem   run.bat live  [file or rtsp://address]
 set "MODE=%~1"
 if /i "%MODE%"=="all" goto arg_run
 if /i "%MODE%"=="reuse" goto arg_run
@@ -38,19 +39,19 @@ set EMPTY=0
 :menu
 cls
 echo ==============================================================
-echo    한우 개체 추적 / 활동량 측정  (webHanwoo)
+echo    Hanwoo individual tracking / activity measurement  (webHanwoo)
 echo ==============================================================
-echo    1. 폴더의 모든 영상 처리   (검출 + 추적 + ReID + 활동량)
-echo    2. 영상 1개 처리
-echo    3. 빠른 재계산 (--reuse)   검출/추적 캐시 재사용
-echo    4. 결과 요약 / 강좌 사이트 열기  (http://localhost:%PORT%)
-echo    5. ID 콘택트 시트 만들기   (ID 유지 확인용)
-echo    6. 강좌 사이트 다시 빌드
-echo    7. 실시간 추적 프로그램  (파일 / RTSP 카메라, 파라미터 튜닝)
-echo    0. 종료
+echo    1. Process all videos in a folder  (detection + tracking + ReID + activity)
+echo    2. Process a single video
+echo    3. Quick recompute (--reuse)  reuse detection/tracking cache
+echo    4. Open result summary / course site  (http://localhost:%PORT%)
+echo    5. Make ID contact sheet  (check ID consistency)
+echo    6. Rebuild course site
+echo    7. Real-time tracking app  (file / RTSP camera, parameter tuning)
+echo    0. Exit
 echo ==============================================================
 set "SEL="
-set /p "SEL=번호 선택: "
+set /p "SEL=Select a number: "
 if not defined SEL (
   set /a EMPTY+=1
   if !EMPTY! geq 3 exit /b 0
@@ -69,21 +70,21 @@ goto menu
 
 :ask_herd
 set "HERD="
-set /p "HERD=축사 마릿수 N (모르면 Enter = 자동 추정): "
+set /p "HERD=Herd size N (Enter = estimate automatically): "
 set "EXTRA="
 if defined HERD set "EXTRA=--herd-size %HERD%"
 exit /b 0
 
 :folder
 set "SRC=%DEFAULT_SRC%"
-set /p "SRC=영상 폴더 [Enter = %DEFAULT_SRC%]: "
+set /p "SRC=Video folder [Enter = %DEFAULT_SRC%]: "
 call :ask_herd
 "%PY%" run_activity.py "%SRC%" %EXTRA%
 goto done
 
 :single
 set "SRC="
-set /p "SRC=영상 파일 경로 (예: E:\Video\cow\cow03.mp4): "
+set /p "SRC=Video file path (e.g. E:\Video\cow\cow03.mp4): "
 if not defined SRC goto menu
 call :ask_herd
 "%PY%" run_activity.py "%SRC%" %EXTRA%
@@ -91,13 +92,13 @@ goto done
 
 :reuse
 set "SRC=%DEFAULT_SRC%"
-set /p "SRC=영상 폴더 또는 파일 [Enter = %DEFAULT_SRC%]: "
+set /p "SRC=Video folder or file [Enter = %DEFAULT_SRC%]: "
 call :ask_herd
 "%PY%" run_activity.py "%SRC%" --reuse %EXTRA%
 goto done
 
 :serve
-echo 웹서버를 새 창에서 시작합니다. (그 창을 닫으면 서버 종료)
+echo Starting the web server in a new window. (Close that window to stop the server)
 start "webHanwoo server" cmd /k ""%PY%" -m http.server %PORT%"
 timeout /t 2 >nul
 start "" "http://localhost:%PORT%/outputs/index.html"
@@ -106,7 +107,7 @@ goto menu
 
 :sheet
 set "V=cow03"
-set /p "V=영상 이름 [Enter = cow03]: "
+set /p "V=Video name [Enter = cow03]: "
 "%PY%" scripts\identity_sheet.py "outputs\%V%"
 if exist "outputs\%V%\identity_sheet.jpg" start "" "outputs\%V%\identity_sheet.jpg"
 goto done
@@ -116,13 +117,13 @@ goto done
 goto done
 
 :live
-echo 실시간 추적 프로그램을 실행합니다. (창을 닫으면 메뉴로 돌아옴)
+echo Starting the real-time tracking app. (Close its window to return to the menu)
 "%PY%" live_app.py
 goto menu
 
 :done
 echo.
-echo 완료. 결과 폴더: %~dp0outputs
+echo Done. Output folder: %~dp0outputs
 pause
 goto menu
 
@@ -152,46 +153,46 @@ exit /b 0
 SETUP = r'''@echo off
 cd /d "%~dp0"
 echo ==============================================================
-echo    webHanwoo 환경 구축  (Python 3.10 이상, NVIDIA GPU 권장)
+echo    webHanwoo environment setup  (Python 3.10+, NVIDIA GPU recommended)
 echo ==============================================================
 
 set "BASE=python"
 where py >nul 2>nul && set "BASE=py -3"
 
 if exist ".venv\Scripts\python.exe" (
-  echo [1/4] 가상환경 이미 있음
+  echo [1/4] Virtual environment already exists
 ) else (
-  echo [1/4] 가상환경 생성 .venv
+  echo [1/4] Creating virtual environment .venv
   %BASE% -m venv .venv
   if errorlevel 1 goto fail
 )
 set "PY=.venv\Scripts\python.exe"
 "%PY%" -m pip install --upgrade pip
 
-echo [2/4] PyTorch 설치 (CUDA 12.8 / 실패하면 CPU 버전)
+echo [2/4] Installing PyTorch (CUDA 12.8 / CPU build if that fails)
 "%PY%" -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 if errorlevel 1 (
   "%PY%" -m pip install torch torchvision
   if errorlevel 1 goto fail
 )
 
-echo [3/4] 나머지 패키지
+echo [3/4] Remaining packages
 "%PY%" -m pip install -r requirements.txt
 if errorlevel 1 goto fail
 
-echo [4/4] 설치 확인
+echo [4/4] Verifying installation
 "%PY%" -c "import torch, ultralytics, cv2; print('torch', torch.__version__, 'CUDA', torch.cuda.is_available()); print('ultralytics', ultralytics.__version__, ' opencv', cv2.__version__)"
 where ffmpeg >nul 2>nul
-if errorlevel 1 echo [주의] ffmpeg 가 PATH 에 없습니다. 결과 영상 저장에 필요합니다 (강좌 01).
-if not exist "models\hanwoo_yolo11s.pt" echo [주의] models\hanwoo_yolo11s.pt 없음: 사전학습 yolo11x.pt 로 동작 (학습은 강좌 04-05).
-if not exist "models\hanwoo_reid.pt" echo [주의] models\hanwoo_reid.pt 없음: ReID 대신 2단계 정합 사용 (학습은 강좌 08).
+if errorlevel 1 echo [WARNING] ffmpeg is not on PATH. It is required to save result videos (lesson 01).
+if not exist "models\hanwoo_yolo11s.pt" echo [WARNING] models\hanwoo_yolo11s.pt missing: running with pretrained yolo11x.pt (training: lessons 04-05).
+if not exist "models\hanwoo_reid.pt" echo [WARNING] models\hanwoo_reid.pt missing: using two-stage linking instead of ReID (training: lesson 07b).
 echo.
-echo 설치 완료. run.bat 을 실행하세요.
+echo Setup complete. Run run.bat.
 pause
 exit /b 0
 
 :fail
-echo [오류] 설치 실패. 위 메시지를 확인하세요.
+echo [ERROR] Setup failed. Check the messages above.
 pause
 exit /b 1
 '''
@@ -199,17 +200,17 @@ exit /b 1
 LIVE = r'''@echo off
 cd /d "%~dp0"
 if not exist ".venv\Scripts\python.exe" (
-  echo [오류] 가상환경이 없습니다. 먼저 setup.bat 을 실행하세요.
+  echo [ERROR] Virtual environment not found. Run setup.bat first.
   pause
   exit /b 1
 )
-rem 한우 실시간 추적 프로그램 (파일 / RTSP 카메라 / 웹캠, 파라미터 실시간 튜닝)
-rem   live.bat                : 프로그램 창 열기
-rem   live.bat rtsp://주소    : 입력을 지정해서 열기
+rem Hanwoo real-time tracking app (file / RTSP camera / webcam, live parameter tuning)
+rem   live.bat                : open the app window
+rem   live.bat rtsp://address : open with the given input
 if "%~1"=="" (".venv\Scripts\python.exe" live_app.py) else (".venv\Scripts\python.exe" live_app.py --source "%~1")
 if errorlevel 1 pause
 '''
 
 for name, text in (("run.bat", RUN), ("setup.bat", SETUP), ("live.bat", LIVE)):
-    (ROOT / name).write_bytes(text.replace("\r\n", "\n").replace("\n", "\r\n").encode("cp949"))
+    (ROOT / name).write_bytes(text.replace("\r\n", "\n").replace("\n", "\r\n").encode("ascii"))  # ASCII only: safe under any cmd code page
     print("wrote", name)

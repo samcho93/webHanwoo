@@ -1,7 +1,7 @@
-"""한우 실시간 추적 프로그램 (파일 / RTSP 카메라 / 웹캠).
+"""Hanwoo live tracking program (file / RTSP camera / webcam).
 
   GUI     : python live_app.py
-  헤드리스: python live_app.py --headless --source rtsp://user:pw@ip:554/stream --save-video
+  Headless: python live_app.py --headless --source rtsp://user:pw@ip:554/stream --save-video
             python live_app.py --headless --source E:\\Video\\cow\\cow09.mp4 --fast
 """
 from __future__ import annotations
@@ -51,7 +51,7 @@ def headless(args):
         print(eng.error)
         return 1
     print(f"done: frames={st.get('frames')} wall={time.time() - t0:.0f}s  N={st.get('N')} "
-          f"(동시검출 {st.get('n_sim')}, 외형군집 {st.get('n_clu')})  avg proc {st.get('fps', 0):.1f} fps")
+          f"(simultaneous {st.get('n_sim')}, appearance clusters {st.get('n_clu')})  avg proc {st.get('fps', 0):.1f} fps")
     return 0
 
 
@@ -62,7 +62,7 @@ def main():
     ap.add_argument("--preset")
     ap.add_argument("--herd-size", type=int)
     ap.add_argument("--enroll", type=float)
-    ap.add_argument("--fast", action="store_true", help="파일을 원래 속도가 아니라 최대 속도로 처리")
+    ap.add_argument("--fast", action="store_true", help="Process files at maximum speed instead of original speed")
     ap.add_argument("--save-video", action="store_true")
     ap.add_argument("--max-seconds", type=float, default=0)
     args = ap.parse_args()

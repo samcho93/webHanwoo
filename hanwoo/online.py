@@ -1,21 +1,21 @@
-"""실시간(온라인) 마릿수 카운트 + 고정 개체군 ID 유지 + 활동량.
+"""Real-time (online) herd counting + fixed-population ID maintenance + activity.
 
-오프라인 방식(identity.py)은 영상 전체를 본 뒤 ID 를 정하지만, 카메라 스트림에는 '미래' 가 없다.
-그래서 두 단계로 나눈다.
+The offline approach (identity.py) assigns IDs after seeing the whole video, but a camera stream has no 'future'.
+So the work is split into two phases.
 
-  1) 등록(enrollment) — 처음 enroll_s 초
-       · 동시 검출 수: 신뢰도 ≥ count_conf 인 검출 수가 count_stable_s 초 이상 유지된 최댓값  → n_sim
-       · 외형 군집   : 추적기 트랙의 ReID 평균 임베딩을 '같은 시각에 함께 보인 트랙은 다른 소' 제약 아래
-                       평균 연결(average linkage)로 묶은 군집 수                              → n_clu
-       · 마릿수 N    : 사용자 지정 > (count_mode) 규칙.  군집은 개체 슬롯의 초기 외형 갤러리가 된다.
-  2) 추적(tracking)
-       · 프레임 간 연결은 BoT-SORT, 그 위에 N 개 '개체 슬롯' 을 둔다.
-       · 새 트랙은 confirm_s 초 동안 외형을 모은 뒤, 비어 있는(안 보이는) 슬롯과
-         비용 = w·외형거리 + (1-w)·이동거리비(사라진 시간 동안 갈 수 있는 거리 대비) 로 헝가리안 매칭.
-       · 트랙이 release_s 초 이상 안 보이면 슬롯은 '사라짐' 상태로 마지막 위치를 기억한다.
-       · 두 트랙이 겹쳤다 떨어지면 전후 외형을 비교해 ID 가 뒤바뀐 것을 교정(swap)한다.
-       · 트랙의 최근 외형이 자기 슬롯보다 '사라진' 슬롯과 훨씬 비슷하면 그 슬롯으로 옮긴다(drift).
-       · N 개 슬롯이 모두 보이는데 겹치지 않는 확실한 트랙이 grow_s 초 더 보이면 N 을 1 늘린다(auto_grow).
+  1) Enrollment — the first enroll_s seconds
+       · Simultaneous count: max number of detections with confidence ≥ count_conf held for ≥ count_stable_s s  → n_sim
+       · Appearance clusters: tracker tracks' mean ReID embeddings grouped by average linkage under the
+                       constraint 'tracks seen at the same time are different animals'; number of clusters → n_clu
+       · Herd size N : user-specified > (count_mode) rule.  Clusters become the initial appearance galleries of the animal slots.
+  2) Tracking
+       · Frame-to-frame association is BoT-SORT; N 'animal slots' sit on top of it.
+       · A new track collects appearance for confirm_s seconds, then is Hungarian-matched to free (unseen) slots with
+         cost = w·appearance distance + (1-w)·motion distance ratio (relative to how far it could move while missing).
+       · If a track is unseen for release_s seconds or more, its slot becomes 'missing' and remembers the last position.
+       · When two tracks overlap and separate, before/after appearance is compared to correct swapped IDs (swap).
+       · If a track's recent appearance is much closer to a 'missing' slot than to its own, it moves to that slot (drift).
+       · If all N slots are visible and a confident non-overlapping track stays visible for grow_s more seconds, N is increased by 1 (auto_grow).
 """
 from __future__ import annotations
 
@@ -38,21 +38,21 @@ def body_px(y, persp):
     return max(a * y + b, 20.0)
 
 
-# --------------------------------------------------------------------------- 상태 객체
+# --------------------------------------------------------------------------- state objects
 @dataclass
 class Track:
-    """추적기(BoT-SORT) 트랙 1개 (= 같은 소라고 '추적기가' 믿는 연속 구간)."""
+    """One tracker (BoT-SORT) track (= a continuous segment the tracker believes is the same animal)."""
     key: int
     t_first: float
     t_last: float
     box: tuple = (0, 0, 0, 0)
     conf: float = 0.0
     embs: deque = field(default_factory=lambda: deque(maxlen=300))  # (t, emb)
-    slot: int | None = None          # 배정된 개체 슬롯 index (None = 대기)
-    last_slot: int | None = None     # 마지막으로 배정됐던 슬롯 (같은 트랙이 돌아오면 우선)
-    overlap: dict = field(default_factory=dict)   # 상대 트랙 key → 마지막으로 겹친 시각
-    t_unassigned: float | None = None              # 대기 상태에서 '배정 가능' 해진 시각
-    t_check: float = 0.0                           # 마지막 drift 검사 시각
+    slot: int | None = None          # assigned animal slot index (None = waiting)
+    last_slot: int | None = None     # last assigned slot (preferred if the same track returns)
+    overlap: dict = field(default_factory=dict)   # other track key → last time they overlapped
+    t_unassigned: float | None = None              # time it became 'assignable' while waiting
+    t_check: float = 0.0                           # time of the last drift check
 
     @property
     def center(self):
@@ -66,12 +66,12 @@ class Track:
 
 @dataclass
 class Slot:
-    """개체 슬롯 = 축사의 소 1마리.  ID 는 sid (1..N)."""
+    """Animal slot = one animal in the pen.  ID is sid (1..N)."""
     sid: int
-    anchors: list = field(default_factory=list)                     # 등록 때 외형 (고정)
-    recent: deque = field(default_factory=lambda: deque(maxlen=60))  # 추적 중 갱신 외형
-    track: int | None = None          # 현재 묶인 트랙 key
-    pos: tuple | None = None          # 마지막 관측 중심
+    anchors: list = field(default_factory=list)                     # appearance at enrollment (fixed)
+    recent: deque = field(default_factory=lambda: deque(maxlen=60))  # appearance updated during tracking
+    track: int | None = None          # currently bound track key
+    pos: tuple | None = None          # last observed centre
     t_last: float = -INF
     proto: np.ndarray | None = None
 
@@ -80,15 +80,15 @@ class Slot:
         self.proto = _norm(np.mean(E, 0)) if E else None
 
     def add(self, e):
-        if self.proto is not None and float(e @ self.proto) < 0.2:   # 명백히 다른 외형은 갤러리 오염 방지
+        if self.proto is not None and float(e @ self.proto) < 0.2:   # keep clearly different appearances out of the gallery
             return
         self.recent.append(e)
         self.update_proto()
 
 
-# --------------------------------------------------------------------------- 활동량 (인과적)
+# --------------------------------------------------------------------------- activity (causal)
 class SlotActivity:
-    """관측된 프레임만으로 위치 평활 → 속도 → 상태·활동지수·누적거리 (실시간, 과거 데이터만 사용)."""
+    """Position smoothing → speed → state/activity index/cumulative distance from observed frames only (real time, past data only)."""
 
     def __init__(self):
         self.hist = deque()     # (t, cx, cy, motion)
@@ -97,21 +97,21 @@ class SlotActivity:
         self.speed = 0.0
         self.state = 0
         self.activity = 0.0
-        self.t_obs = 0.0        # 관측된 총 시간
+        self.t_obs = 0.0        # total observed time
         self.state_time = [0.0, 0.0, 0.0]
         self.act_sum = 0.0
 
     def update(self, t, cx, cy, motion, persp, cfg):
         if self.hist and t - self.hist[-1][0] > cfg.interp_max_gap_s:
-            self.hist.clear()                       # 공백이 길면 새 구간 (가짜 이동거리 방지)
+            self.hist.clear()                       # long gap starts a new segment (avoids fake travel distance)
             self.t_prev = None
         self.hist.append((t, cx, cy, motion))
         while self.hist and t - self.hist[0][0] > 2 * cfg.smooth_window_s:
             self.hist.popleft()
         H = np.array(self.hist)
         w = cfg.smooth_window_s
-        cur = H[H[:, 0] >= t - w / 2]               # 최근 0.5초 중앙값 = 현재 위치
-        old = H[H[:, 0] <= t - w]                   # 1초 전 근방
+        cur = H[H[:, 0] >= t - w / 2]               # median of the last 0.5 s = current position
+        old = H[H[:, 0] <= t - w]                   # around 1 s ago
         sx, sy = np.median(cur[:, 1]), np.median(cur[:, 2])
         mpp = cfg.cow_height_m / body_px(sy, persp)
         if len(old):
@@ -139,7 +139,7 @@ class SlotActivity:
         return sx, sy
 
 
-# --------------------------------------------------------------------------- 메인
+# --------------------------------------------------------------------------- main
 class OnlineHerd:
     def __init__(self, cfg, log=print):
         self.cfg = cfg
@@ -149,10 +149,10 @@ class OnlineHerd:
     def reset(self, keep_slots=False):
         self.phase = "enroll"
         self.t0 = None
-        self.counts = deque()        # (t, 확실한 검출 수)
-        self.boxes_enroll = []       # 원근 모델 적합용 (cy, h)
+        self.counts = deque()        # (t, confident detection count)
+        self.boxes_enroll = []       # for fitting the perspective model (cy, h)
         self.tracks: dict[int, Track] = {}
-        self.cooc: dict[tuple, float] = {}   # 등록 중 함께 보인 트랙 쌍 → 겹친 시간(초)
+        self.cooc: dict[tuple, float] = {}   # track pairs seen together during enrollment → overlap time (s)
         if not keep_slots:
             self.slots: list[Slot] = []
             self.acts: list[SlotActivity] = []
@@ -166,10 +166,10 @@ class OnlineHerd:
         self.events.append((t, msg))
         self.log(f"[{t:7.1f}s] {msg}")
 
-    # ------------------------------------------------------------------ 입력
+    # ------------------------------------------------------------------ input
     def step(self, t, dets, embs, dt):
-        """t: 초, dets: [(key, box, conf, occ, motion)], embs: {key: emb} (이번 프레임에 뽑은 것만)
-        반환: [(key, box, conf, sid or None, label_state)]"""
+        """t: seconds, dets: [(key, box, conf, occ, motion)], embs: {key: emb} (only those extracted this frame)
+        Returns: [(key, box, conf, sid or None, label_state)]"""
         cfg = self.cfg
         if self.t0 is None:
             self.t0 = t
@@ -182,7 +182,7 @@ class OnlineHerd:
             seen.add(key)
             if key in embs:
                 tr.embs.append((t, embs[key]))
-        # 겹침(가림) 기록: 스왑 교정용
+        # record overlaps (occlusion): for swap correction
         keys = [d[0] for d in dets]
         B = np.array([d[1] for d in dets], float).reshape(-1, 4)
         if len(B) > 1:
@@ -191,7 +191,7 @@ class OnlineHerd:
             for i, j in zip(ii, jj):
                 self.tracks[keys[i]].overlap[keys[j]] = t
                 self.tracks[keys[j]].overlap[keys[i]] = t
-        # 오래된 트랙 정리
+        # clean up old tracks
         for k in [k for k, tr in self.tracks.items() if t - tr.t_last > 30]:
             self._unbind_track(k)
             del self.tracks[k]
@@ -217,10 +217,10 @@ class OnlineHerd:
             out.append((key, box, conf, tr.slot, "ok" if tr.slot is not None else "pending"))
         return out
 
-    # ------------------------------------------------------------------ 1) 등록 → 마릿수
+    # ------------------------------------------------------------------ 1) enrollment → herd count
     def _finish_enroll(self, t, seen):
         cfg = self.cfg
-        # 원근 모델 h(y) = a·y + b
+        # perspective model h(y) = a·y + b
         if len(self.boxes_enroll) >= 20:
             P = np.array(self.boxes_enroll)
             bins = np.quantile(P[:, 0], np.linspace(0, 1, 11))
@@ -232,7 +232,7 @@ class OnlineHerd:
             if len(xs) >= 2:
                 a, b = np.polyfit(xs, ys, 1)
                 self.persp = (float(a), float(b)) if a > 0 else (0.0, float(np.median(ys)))
-        # (a) 안정적인 동시 검출 수
+        # (a) stable simultaneous detection count
         C = np.array(self.counts)
         n_sim = 0
         for k in range(int(C[:, 1].max()) if len(C) else 0, 0, -1):
@@ -247,7 +247,7 @@ class OnlineHerd:
             if best >= cfg.count_stable_s:
                 n_sim = k
                 break
-        # (b) 외형 군집 (cannot-link: 같은 시각 함께 보인 트랙)
+        # (b) appearance clusters (cannot-link: tracks seen at the same time)
         clusters = self._cluster_tracks()
         n_clu = sum(1 for c in clusters if c["dur"] >= cfg.count_min_track_s)
         self.n_sim, self.n_clu = n_sim, n_clu
@@ -261,7 +261,7 @@ class OnlineHerd:
             N = n_sim
         N = max(N, 1)
         self.N = N
-        # 슬롯 초기화: 오래 보인 군집부터 N 개
+        # initialise slots: N clusters, longest-seen first
         clusters.sort(key=lambda c: -c["dur"])
         self.slots, self.acts = [], []
         for i in range(N):
@@ -278,8 +278,8 @@ class OnlineHerd:
             self.slots.append(s)
             self.acts.append(SlotActivity())
         self.phase = "track"
-        self.event(t, f"등록 완료: 동시검출 {n_sim}마리, 외형군집 {n_clu}개 → N={N}"
-                      f"{' (사용자 지정)' if cfg.herd_size > 0 else ''}")
+        self.event(t, f"Enrollment done: simultaneous {n_sim}, appearance clusters {n_clu} → N={N}"
+                      f"{' (user-specified)' if cfg.herd_size > 0 else ''}")
 
     def _cluster_tracks(self):
         cfg = self.cfg
@@ -321,7 +321,7 @@ class OnlineHerd:
             del items[bj]
         return items
 
-    # ------------------------------------------------------------------ 2) 추적
+    # ------------------------------------------------------------------ 2) tracking
     def _unbind_track(self, key):
         tr = self.tracks.get(key)
         if tr is not None and tr.slot is not None:
@@ -335,7 +335,7 @@ class OnlineHerd:
         if s.track is not None and s.track != tr.key:
             self._unbind_track(s.track)
         self._unbind_track(tr.key)
-        if si < len(self.acts):              # 다른 트랙으로 바뀌면 위치 이력을 새로 시작 (가짜 순간이동 속도 방지)
+        if si < len(self.acts):              # restart position history when switching to another track (avoids fake teleport speed)
             self.acts[si].hist.clear()
             self.acts[si].t_prev = None
         s.track = tr.key
@@ -366,7 +366,7 @@ class OnlineHerd:
 
     def _track_step(self, t, dets, seen, dt):
         cfg = self.cfg
-        # (1) 안 보이는 트랙 → 슬롯 해제 (슬롯은 마지막 위치 기억)
+        # (1) unseen tracks → release slot (slot remembers last position)
         for s in self.slots:
             if s.track is not None:
                 tr = self.tracks.get(s.track)
@@ -374,7 +374,7 @@ class OnlineHerd:
                     if tr is not None:
                         tr.slot = None
                     s.track = None
-        # (2) 같은 트랙이 돌아왔고 이전 슬롯이 비어 있으면 그대로 복귀
+        # (2) same track returned and its previous slot is free → restore it
         for k in seen:
             tr = self.tracks[k]
             if tr.slot is None and tr.last_slot is not None and tr.last_slot < len(self.slots) \
@@ -383,11 +383,11 @@ class OnlineHerd:
                 if s.pos is None or np.hypot(tr.center[0] - s.pos[0], tr.center[1] - s.pos[1]) \
                         <= cfg.id_gate * self._allowed_px(s, t, tr.center[1]):
                     self._bind(tr, tr.last_slot, t)
-        # (3) 겹쳤다 떨어진 트랙 쌍 → 스왑 검사
+        # (3) track pairs that overlapped then separated → swap check
         self._check_swaps(t, seen)
-        # (4) drift: 묶인 트랙의 최근 외형이 '사라진' 다른 슬롯과 훨씬 비슷하면 이동
+        # (4) drift: if a bound track's recent appearance is much closer to another 'missing' slot, move it
         self._check_drift(t, seen)
-        # (5) 대기 트랙 → 빈 슬롯 배정 (헝가리안)
+        # (5) waiting tracks → assign to free slots (Hungarian)
         ready = []
         for k in seen:
             tr = self.tracks[k]
@@ -409,8 +409,8 @@ class OnlineHerd:
                 if Cm[a, b] < INF and Cm[a, b] <= cfg.id_max_cost:
                     tr, si = ready[a][0], free[b]
                     gap = t - self.slots[si].t_last
-                    self._bind(tr, si, t, f"재등장 ({gap:.1f}s 만에, 비용 {Cm[a, b]:.2f})" if gap > 3 else "")
-        # (6) 아무 슬롯에도 못 들어간 확실한 트랙 → N 자동 증가
+                    self._bind(tr, si, t, f"re-appeared (after {gap:.1f}s, cost {Cm[a, b]:.2f})" if gap > 3 else "")
+        # (6) confident tracks that fit no slot → auto-increase N
         for tr, _e in ready:
             if tr.slot is None and tr.t_unassigned is None:
                 tr.t_unassigned = t
@@ -424,8 +424,8 @@ class OnlineHerd:
                 self.slots.append(s)
                 self.acts.append(SlotActivity())
                 self.N = len(self.slots)
-                self._bind(tr, len(self.slots) - 1, t, f"새 개체 → 마릿수 N={self.N} 로 증가")
-        # (7) 묶인 슬롯 갱신: 위치·갤러리·활동량
+                self._bind(tr, len(self.slots) - 1, t, f"new animal → herd size increased to N={self.N}")
+        # (7) update bound slots: position, gallery, activity
         motion = {d[0]: (d[3], d[4]) for d in dets}
         for si, s in enumerate(self.slots):
             if s.track is None or s.track not in seen:
@@ -449,7 +449,7 @@ class OnlineHerd:
                     continue
                 b = self.tracks[o]
                 if t - t_ov < cfg.swap_post_s:
-                    continue                      # 아직 떨어진 지 얼마 안 됨 → 외형 더 모으기
+                    continue                      # separated only recently → collect more appearance
                 del a.overlap[o]
                 b.overlap.pop(k, None)
                 done.add((k, o))
@@ -466,7 +466,7 @@ class OnlineHerd:
                     ia, ib = a.slot, b.slot
                     self._unbind_track(a.key); self._unbind_track(b.key)
                     self._bind(a, ib, t); self._bind(b, ia, t)
-                    self.event(t, f"ID {sa.sid} ↔ ID {sb.sid} 뒤바뀜 교정 (외형 {keep:.2f}→{swap:.2f})")
+                    self.event(t, f"ID {sa.sid} ↔ ID {sb.sid} swap corrected (appearance {keep:.2f}→{swap:.2f})")
 
     def _check_drift(self, t, seen):
         cfg = self.cfg
@@ -493,10 +493,10 @@ class OnlineHerd:
                     best, bs = si, v
             if best is not None:
                 old = own.sid
-                self._bind(tr, best, t, f"ID {old} → ID {self.slots[best].sid} 외형 교정 ({s_own:.2f}→{bs:.2f})")
+                self._bind(tr, best, t, f"ID {old} → ID {self.slots[best].sid} appearance correction ({s_own:.2f}→{bs:.2f})")
                 free = [i for i, s in enumerate(self.slots) if s.track is None and s.proto is not None]
 
-    # ------------------------------------------------------------------ 조회
+    # ------------------------------------------------------------------ queries
     def visible_ids(self):
         return [s.sid for s in self.slots if s.track is not None]
 

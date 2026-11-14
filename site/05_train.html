@@ -1,22 +1,22 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>YOLO 미세조정 학습과 평가 · 한우 활동량 AI 강좌</title>
+<title>Fine-tuning and Evaluating YOLO · Hanwoo Activity AI Course</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <link rel="stylesheet" href="assets/style.css"></head><body>
-<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
-<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
-<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class='on'><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class=''><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li><li class=''><a href='13_paper.html'><span>14</span>논문: 고정 개체군 제약과 자기지도 ReID</a></li></ol>
-<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
-<main class="content"><div class="crumb">Lesson 05 / 14</div><h1>YOLO 미세조정 학습과 평가</h1>
-<p class="lead">COCO 로 사전학습된 YOLO11s 가중치에서 출발해, 앞 레슨에서 만든 축사 데이터셋으로 <b>전이학습(transfer learning)</b> 합니다. 처음부터 학습하는 것보다 훨씬 적은 데이터와 시간으로 높은 성능을 얻습니다.</p>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="Menu">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 Hanwoo Activity AI</a>
+<div class="sub">YOLO · Tracking · Activity · Dashboard</div><ol><li class=''><a href='index.html'><span>00</span>Course Introduction and Overview</a></li><li class=''><a href='01_env.html'><span>01</span>Setting Up the Environment</a></li><li class=''><a href='02_data.html'><span>02</span>Understanding the Data (Barn Videos)</a></li><li class=''><a href='03_detect.html'><span>03</span>Object Detection: Trying Pretrained YOLO</a></li><li class=''><a href='04_dataset.html'><span>04</span>Building Training Data Automatically (Pseudo-labeling)</a></li><li class='on'><a href='05_train.html'><span>05</span>Fine-tuning and Evaluating YOLO</a></li><li class=''><a href='06_tracking.html'><span>06</span>Multi-Object Tracking (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID Consistency: Offline Tracklet Stitching</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID Training and Fixed-Herd ID Keeping</a></li><li class=''><a href='08_activity.html'><span>09</span>Activity Measurement Algorithm</a></li><li class=''><a href='09_visualize.html'><span>10</span>Result Video and Dashboard</a></li><li class=''><a href='10_results.html'><span>11</span>Running All Videos and Analysing Results</a></li><li class=''><a href='11_apply.html'><span>12</span>Applying to New Videos and Extending</a></li><li class=''><a href='12_live.html'><span>13</span>Real-Time Tracking App (RTSP Cameras)</a></li><li class=''><a href='13_paper.html'><span>14</span>Paper: Fixed-Herd Constraint and Self-Supervised ReID</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ Result dashboards</a></div></nav>
+<main class="content"><div class="crumb">Lesson 05 / 14</div><h1>Fine-tuning and Evaluating YOLO</h1>
+<p class="lead">Starting from YOLO11s weights pretrained on COCO, we apply <b>transfer learning</b> with the barn dataset built in the previous lesson. This achieves high performance with far less data and time than training from scratch.</p>
 
-<h2>1. 학습 코드</h2>
-<div class="file">📄 scripts/train.py</div><pre><code class="language-python">&quot;&quot;&quot;Student 모델(YOLO11s) 미세조정 학습.
+<h2>1. Training code</h2>
+<div class="file">📄 scripts/train.py</div><pre><code class="language-python">&quot;&quot;&quot;Fine-tune the student model (YOLO11s).
 
 usage: python scripts/train.py --epochs 60
-결과: models/hanwoo_yolo11s.pt  (runs/hanwoo/train/weights/best.pt 복사본)
+Output: models/hanwoo_yolo11s.pt  (copy of runs/hanwoo/train/weights/best.pt)
 &quot;&quot;&quot;
 import argparse
 import shutil
@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT))
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(&quot;--data&quot;, default=str(ROOT / &quot;data/hanwoo_ds/hanwoo.yaml&quot;))
-    ap.add_argument(&quot;--model&quot;, default=str(ROOT / &quot;models/yolo11s.pt&quot;))  # COCO 사전학습 가중치에서 시작(전이학습)
+    ap.add_argument(&quot;--model&quot;, default=str(ROOT / &quot;models/yolo11s.pt&quot;))  # start from COCO-pretrained weights (transfer learning)
     ap.add_argument(&quot;--epochs&quot;, type=int, default=60)
     ap.add_argument(&quot;--imgsz&quot;, type=int, default=960)
     ap.add_argument(&quot;--batch&quot;, type=int, default=16)
@@ -42,7 +42,7 @@ def main():
         data=a.data, epochs=a.epochs, imgsz=a.imgsz, batch=a.batch, device=0, workers=4,
         project=str(ROOT / &quot;runs/hanwoo&quot;), name=&quot;train&quot;, exist_ok=True,
         patience=20, cos_lr=True, close_mosaic=10,
-        # 고정 카메라 축사 영상 특성에 맞춘 증강: 좌우반전 O, 상하반전 X, 밝기(HSV) 변화로 주야간 대응
+        # augmentation for fixed-camera barn video: horizontal flip yes, vertical flip no, brightness (HSV) changes for day/night
         fliplr=0.5, flipud=0.0, hsv_v=0.4, degrees=0.0, scale=0.4, mosaic=1.0, mixup=0.0,
         plots=True,
     )
@@ -57,41 +57,41 @@ def main():
 if __name__ == &quot;__main__&quot;:
     main()</code></pre>
 
-<h3>주요 하이퍼파라미터</h3>
+<h3>Key hyperparameters</h3>
 <table>
-<tr><th>파라미터</th><th>값</th><th>이유</th></tr>
-<tr><td><code>imgsz</code></td><td>960</td><td>원거리의 작은 소를 위해 기본값(640)보다 크게</td></tr>
-<tr><td><code>epochs / patience</code></td><td>60 / 20</td><td>검증 성능이 20 epoch 동안 오르지 않으면 조기 종료</td></tr>
-<tr><td><code>cos_lr</code></td><td>True</td><td>학습률을 코사인 곡선으로 서서히 감소 → 안정적 수렴</td></tr>
-<tr><td><code>mosaic / close_mosaic</code></td><td>1.0 / 10</td><td>4장을 이어붙이는 증강으로 다양한 배치 학습, 마지막 10 epoch 는 실제 이미지로 마무리</td></tr>
-<tr><td><code>flipud</code></td><td>0</td><td>고정 카메라에서 상하가 뒤집힌 소는 나올 수 없음</td></tr>
-<tr><td><code>hsv_v</code></td><td>0.4</td><td>계절·시간대에 따른 밝기 변화 대응</td></tr>
+<tr><th>Parameter</th><th>Value</th><th>Reason</th></tr>
+<tr><td><code>imgsz</code></td><td>960</td><td>Larger than the default (640) to handle small, distant cattle</td></tr>
+<tr><td><code>epochs / patience</code></td><td>60 / 20</td><td>Stop early if validation performance doesn't improve for 20 epochs</td></tr>
+<tr><td><code>cos_lr</code></td><td>True</td><td>Gradually lowers the learning rate along a cosine curve → stable convergence</td></tr>
+<tr><td><code>mosaic / close_mosaic</code></td><td>1.0 / 10</td><td>Augmentation that stitches 4 images together for varied batches; the last 10 epochs finish on real images</td></tr>
+<tr><td><code>flipud</code></td><td>0</td><td>With a fixed camera, an upside-down animal can never appear</td></tr>
+<tr><td><code>hsv_v</code></td><td>0.4</td><td>Handles brightness changes across seasons and times of day</td></tr>
 </table>
 
-<h2>2. 실행</h2>
+<h2>2. Run</h2>
 <pre><code class="language-bash">python scripts/train.py --epochs 60 --imgsz 960 --batch 16</code></pre>
-<p>TITAN RTX 기준 epoch 당 약 75초. 학습 결과는 <code>runs/hanwoo/train/</code> 에 저장되고, 최고 성능 가중치가 <code>models/hanwoo_yolo11s.pt</code> 로 복사됩니다.</p>
+<p>About 75 seconds per epoch on a TITAN RTX. Training results are saved to <code>runs/hanwoo/train/</code>, and the best weights are copied to <code>models/hanwoo_yolo11s.pt</code>.</p>
 
-<h2>3. 결과 (검증셋: 학습에 쓰지 않은 cow02, cow09)</h2>
-<div class='kpis'><div><span>학습 epoch</span><b>60</b></div><div><span>best epoch</span><b>46</b></div><div><span>Precision</span><b>0.971</b></div><div><span>Recall</span><b>0.972</b></div><div><span>mAP50</span><b>0.990</b></div><div><span>mAP50-95</span><b>0.852</b></div></div>
-<figure><img src="assets/img/train_results.png"><figcaption>학습 곡선 — 손실(loss)은 감소, 정밀도·재현율·mAP 는 상승</figcaption></figure>
-<h3>지표 읽는 법</h3>
+<h2>3. Results (validation set: cow02 and cow09, not used for training)</h2>
+<div class='kpis'><div><span>Epochs trained</span><b>60</b></div><div><span>best epoch</span><b>46</b></div><div><span>Precision</span><b>0.971</b></div><div><span>Recall</span><b>0.972</b></div><div><span>mAP50</span><b>0.990</b></div><div><span>mAP50-95</span><b>0.852</b></div></div>
+<figure><img src="assets/img/train_results.png"><figcaption>Training curves — loss goes down; precision, recall and mAP go up</figcaption></figure>
+<h3>How to read the metrics</h3>
 <ul>
-<li><b>Precision(정밀도)</b>: 모델이 소라고 한 것 중 진짜 소의 비율 — 낮으면 오검출이 많음</li>
-<li><b>Recall(재현율)</b>: 진짜 소 중 모델이 찾은 비율 — 낮으면 놓치는 소가 많음 → 추적이 끊김</li>
-<li><b>mAP50</b>: 박스가 정답과 50% 이상 겹치면 정답으로 볼 때의 평균 정밀도</li>
-<li><b>mAP50-95</b>: 겹침 기준을 50~95% 로 엄격하게 올려가며 평균 — 박스 위치 정확도까지 반영</li>
+<li><b>Precision</b>: of everything the model called a cow, the fraction that really is a cow — low means many false positives</li>
+<li><b>Recall</b>: of all real cattle, the fraction the model found — low means many missed animals → broken tracks</li>
+<li><b>mAP50</b>: mean average precision when a box counts as correct if it overlaps the ground truth by 50% or more</li>
+<li><b>mAP50-95</b>: the average as the overlap threshold is tightened from 50% to 95% — also reflects box localization accuracy</li>
 </ul>
 
-<h2>4. 학습 전후 비교 (같은 YOLO11s)</h2>
+<h2>4. Before vs. after training (same YOLO11s)</h2>
 <div class="two">
-<figure><img src="assets/img/det_yolo11s.jpg"><figcaption>학습 전 (COCO)</figcaption></figure>
-<figure><img src="assets/img/det_finetuned.jpg"><figcaption>학습 후 (hanwoo 단일 클래스)</figcaption></figure>
+<figure><img src="assets/img/det_yolo11s.jpg"><figcaption>Before training (COCO)</figcaption></figure>
+<figure><img src="assets/img/det_finetuned.jpg"><figcaption>After training (single hanwoo class)</figcaption></figure>
 </div>
-<div class="note"><b>주의</b>: 검증 라벨도 teacher 가 만든 자동 라벨이므로, 위 점수는 “student 가 teacher 를 얼마나 잘 따라 하는가” 입니다. 사람이 검수한 라벨로 평가하면 점수가 다소 낮게 나올 수 있습니다. 그래도 student 는 teacher 보다 <b>수십 배 빠르면서</b> 곤포 오검출이 없고, 이것이 추적 품질로 이어집니다.</div>
+<div class="note"><b>Caution</b>: the validation labels are also auto-labels made by the teacher, so the scores above measure “how well the student imitates the teacher”. Evaluated against human-reviewed labels, the scores may come out somewhat lower. Even so, the student is <b>tens of times faster</b> than the teacher with no bale false positives, and that carries through to tracking quality.</div>
 
-<div class="pager"><a href='04_dataset.html'>← 학습 데이터 자동 구축 (Pseudo-labeling)</a><a class='nx' href='06_tracking.html'>다중 객체 추적 (BoT-SORT) →</a></div></main>
+<div class="pager"><a href='04_dataset.html'>← Building Training Data Automatically (Pseudo-labeling)</a><a class='nx' href='06_tracking.html'>Multi-Object Tracking (BoT-SORT) →</a></div></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
-b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='Copy';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/Copy$/,''));b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200)};p.appendChild(b)});</script>
 </body></html>

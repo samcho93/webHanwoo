@@ -1,7 +1,7 @@
-"""1단계: 검출(YOLO) + 온라인 추적(BoT-SORT) + 프레임별 특징 수집.
+"""Stage 1: detection (YOLO) + online tracking (BoT-SORT) + per-frame feature collection.
 
-결과는 pandas DataFrame 한 장(프레임 × 객체)으로 반환한다.
-  frame, tid, x1,y1,x2,y2, conf, motion  + 외형 히스토그램(별도 dict)
+Returns a single pandas DataFrame (frame × object):
+  frame, tid, x1,y1,x2,y2, conf, motion  + appearance histograms (separate dict)
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import pandas as pd
 
 from .config import PipelineConfig
 
-# COCO 사전학습 모델 사용 시 '소'로 간주할 클래스 (소가 말로 오분류되는 경우 보완, sheep 은 곤포 오검출로 제외)
+# Classes treated as 'cow' with a COCO-pretrained model (horse covers cows misclassified as horses; sheep is excluded because it fires on hay bales)
 COCO_ANIMAL_CLASSES = [17, 19]
 
 
@@ -22,14 +22,14 @@ def load_model(cfg: PipelineConfig):
 
     w = cfg.weights if Path(cfg.weights).exists() else cfg.fallback_weights
     model = YOLO(w)
-    # 클래스 1개(hanwoo) 학습 모델이면 전체 사용, COCO(80 클래스) 모델이면 소/말만 사용
+    # single-class (hanwoo) model: use all classes; COCO (80 classes) model: cows/horses only
     classes = None if len(model.names) == 1 else COCO_ANIMAL_CLASSES
     print(f"[detector] {w}  ({'fine-tuned hanwoo' if classes is None else 'COCO pretrained'})")
     return model, classes
 
 
 def appearance_hist(frame_hsv: np.ndarray, box) -> np.ndarray:
-    """bbox 중앙부(펜스·배경 영향 최소화)의 H-S 2D 히스토그램 (외형 특징)."""
+    """H-S 2D histogram of the bbox centre region (minimises fence/background influence) - appearance feature."""
     x1, y1, x2, y2 = [int(v) for v in box]
     w, h = x2 - x1, y2 - y1
     cx1, cy1 = x1 + w // 5, y1 + h // 5

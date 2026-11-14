@@ -1,10 +1,10 @@
-"""고정 오검출(배경 물체) 자동 탐지 → 제외 영역 제안/적용.
+"""Automatic detection of static false positives (background objects) → propose/apply exclusion zones.
 
-같은 좌표에 오래(기본 120초 이상) 남아 있는 '작은' 박스는 구유·사료통 같은 배경 물체를 소로 잘못 본 것이다.
-사용:
-  python scripts/find_static_boxes.py outputs/cow03                 # 후보만 출력
-  python scripts/find_static_boxes.py outputs/cow03 --apply         # configs/zones/cow03.json 에 제외 영역 추가
-  python scripts/find_static_boxes.py outputs/live/cow03_2026...    # 실시간 결과도 가능
+Small boxes that stay at the same coordinates for a long time (default >= 120 s) are background objects such as feed troughs mistaken for cows.
+Usage:
+  python scripts/find_static_boxes.py outputs/cow03                 # print candidates only
+  python scripts/find_static_boxes.py outputs/cow03 --apply         # add exclusion zones to configs/zones/cow03.json
+  python scripts/find_static_boxes.py outputs/live/cow03_2026...    # works on real-time results too
 """
 import argparse
 import json
@@ -21,10 +21,10 @@ from hanwoo.zones import ZONES_DIR, StaticDetector, add_exclusions, zone_stem  #
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out_dir")
-    ap.add_argument("--min-s", type=float, default=120.0, help="같은 자리 누적 시간(초) 하한")
-    ap.add_argument("--max-ratio", type=float, default=0.5, help="박스 높이/기대 체고 상한 (누운 소 보호)")
+    ap.add_argument("--min-s", type=float, default=120.0, help="minimum accumulated time at the same spot (s)")
+    ap.add_argument("--max-ratio", type=float, default=0.5, help="max box height / expected cow height (protects lying cows)")
     ap.add_argument("--fps", type=float, default=24.0)
-    ap.add_argument("--size", default="854x480", help="영상 크기 WxH")
+    ap.add_argument("--size", default="854x480", help="video size WxH")
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args()
     od = Path(a.out_dir)
@@ -40,14 +40,14 @@ def main():
         sd.add(g[["x1", "y1", "x2", "y2"]].to_numpy(), 1 / a.fps)
     cands = sd.candidates(fit_perspective(d), W, H)
     if not cands:
-        print("고정 오검출 후보 없음")
+        print("No static false-positive candidates")
         return
     for c in cands:
-        print(f"후보: 박스 {tuple(round(v) for v in c['box'])}  {c['seconds']:.0f}초 고정  크기비 {c['ratio']}")
+        print(f"Candidate: box {tuple(round(v) for v in c['box'])}  static for {c['seconds']:.0f} s  size ratio {c['ratio']}")
     if a.apply:
         path = ZONES_DIR / f"{zone_stem(source)}.json"
         z = add_exclusions(path, [c["rect"] for c in cands])
-        print(f"→ {path} 제외 영역 {len(z['exclude'])}개")
+        print(f"→ {path}: {len(z['exclude'])} exclusion zones")
 
 
 if __name__ == "__main__":

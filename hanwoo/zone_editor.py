@@ -1,9 +1,9 @@
-"""검출 영역 편집 창: 영상 위에 다각형을 클릭해서 그린다.
+"""Detection zone editor: draw polygons by clicking on the video frame.
 
-  왼쪽 클릭 : 점 추가        오른쪽 클릭 / [다각형 닫기] : 현재 다각형 완성
-  Backspace : 마지막 점 삭제  [선택 삭제] : 목록에서 고른 다각형 삭제
-  제외 영역(빨강) 안에 박스 발 위치(하단 중앙)가 있으면 버리고,
-  포함 영역(초록)을 하나라도 그리면 그 안의 박스만 사용한다.
+  Left click : add point          Right click / [Close polygon] : finish current polygon
+  Backspace  : delete last point  [Delete selected] : delete the polygon selected in the list
+  Boxes whose foot position (bottom centre) lies inside an exclude zone (red) are dropped;
+  if any include zone (green) is drawn, only boxes inside it are used.
 """
 from __future__ import annotations
 
@@ -27,9 +27,9 @@ class Canvas(QWidget):
         self.img = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888).copy()
         self.W, self.H = w, h
         self.zones = zones
-        self.cur = []          # 그리는 중인 점 (정규화 좌표)
+        self.cur = []          # points being drawn (normalised coordinates)
         self.mode = "exclude"
-        self.boxes = []        # 참고용 검출 박스 (정규화)
+        self.boxes = []        # reference detection boxes (normalised)
         self.setMinimumSize(640, 360)
         self.setMouseTracking(True)
         self.on_change = lambda: None
@@ -93,7 +93,7 @@ class Canvas(QWidget):
 class ZoneDialog(QDialog):
     def __init__(self, frame_bgr, path: Path, boxes=None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"검출 영역 편집 — {path.name}")
+        self.setWindowTitle(f"Edit detection zones — {path.name}")
         self.resize(1200, 760)
         self.path = Path(path)
         self.zones = load_zones(self.path)
@@ -103,34 +103,34 @@ class ZoneDialog(QDialog):
         self.canvas.on_change = self._refresh
 
         side = QVBoxLayout()
-        help_ = QLabel("왼쪽 클릭: 점 추가\n오른쪽 클릭: 다각형 닫기\nBackspace: 마지막 점 삭제\n\n"
-                       "빨강 = 제외 영역 (축사 밖·흐린 배경)\n초록 = 포함 영역 (그리면 이 안만 사용)\n"
-                       "판정 기준: 박스 하단 중앙(발 위치)\n노란 박스 = 현재 검출")
+        help_ = QLabel("Left click: add point\nRight click: close polygon\nBackspace: delete last point\n\n"
+                       "Red = exclude zone (outside the pen / blurred background)\nGreen = include zone (if drawn, only the inside is used)\n"
+                       "Test point: box bottom-centre (foot position)\nYellow boxes = current detections")
         help_.setWordWrap(True)
         side.addWidget(help_)
-        self.rb_exc, self.rb_inc = QRadioButton("제외 영역 그리기"), QRadioButton("포함 영역 그리기")
+        self.rb_exc, self.rb_inc = QRadioButton("Draw exclude zone"), QRadioButton("Draw include zone")
         self.rb_exc.setChecked(True)
         self.rb_exc.toggled.connect(lambda v: setattr(self.canvas, "mode", "exclude" if v else "include"))
         side.addWidget(self.rb_exc)
         side.addWidget(self.rb_inc)
-        b_close = QPushButton("다각형 닫기")
+        b_close = QPushButton("Close polygon")
         b_close.clicked.connect(self.canvas.close_poly)
         side.addWidget(b_close)
         self.lst = QListWidget()
         side.addWidget(self.lst, 1)
-        b_del = QPushButton("선택 삭제")
+        b_del = QPushButton("Delete selected")
         b_del.clicked.connect(self._delete)
-        b_clear = QPushButton("모두 지우기")
+        b_clear = QPushButton("Clear all")
         b_clear.clicked.connect(self._clear)
         side.addWidget(b_del)
         side.addWidget(b_clear)
         h = QHBoxLayout()
-        b_save = QPushButton("저장 후 적용")
+        b_save = QPushButton("Save and apply")
         b_save.setDefault(True)
         b_save.clicked.connect(self._save)
-        b_as = QPushButton("다른 이름으로…")
+        b_as = QPushButton("Save as…")
         b_as.clicked.connect(self._save_as)
-        b_cancel = QPushButton("취소")
+        b_cancel = QPushButton("Cancel")
         b_cancel.clicked.connect(self.reject)
         h.addWidget(b_save)
         h.addWidget(b_as)
@@ -158,7 +158,7 @@ class ZoneDialog(QDialog):
     def _refresh(self):
         self.lst.clear()
         for k, i in self._items():
-            self.lst.addItem(f"{'제외' if k == 'exclude' else '포함'} {i + 1}  ({len(self.zones[k][i])}점)")
+            self.lst.addItem(f"{'Exclude' if k == 'exclude' else 'Include'} {i + 1}  ({len(self.zones[k][i])} pts)")
         self.canvas.update()
 
     def _delete(self):
@@ -180,14 +180,14 @@ class ZoneDialog(QDialog):
         self.accept()
 
     def _save_as(self):
-        p, _ = QFileDialog.getSaveFileName(self, "영역 파일 저장", str(self.path), "JSON (*.json)")
+        p, _ = QFileDialog.getSaveFileName(self, "Save zone file", str(self.path), "JSON (*.json)")
         if p:
             self.path = Path(p)
             self._save()
 
 
 def grab_frame(source: str, at_s: float = 2.0):
-    """편집용 프레임 1장 (파일은 at_s 초 지점)."""
+    """One frame for editing (for files, taken at at_s seconds)."""
     src = int(source) if str(source).isdigit() else source
     cap = cv2.VideoCapture(src)
     if not str(source).isdigit() and "://" not in str(source):

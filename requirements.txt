@@ -1,4 +1,4 @@
-# GPU 버전 torch 는 먼저 별도로 설치:
+# Install the GPU build of torch separately first:
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 ultralytics>=8.4
 opencv-python>=4.10
@@ -7,4 +7,4 @@ pandas
 scipy
 lap
 matplotlib
-PySide6>=6.7          # 실시간 추적 프로그램 GUI (live_app.py)
+PySide6>=6.7          # GUI for the real-time tracking app (live_app.py)

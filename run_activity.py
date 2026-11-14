@@ -1,8 +1,8 @@
-"""사용법
-  python run_activity.py E:/Video/cow                # 폴더 내 모든 mp4 처리
-  python run_activity.py E:/Video/cow/cow01.mp4      # 단일 영상
-  python run_activity.py E:/Video/cow --reuse        # 검출·추적 재사용, 정합/활동량 파라미터만 재튜닝
-  python run_activity.py E:/Video/cow --reuse --herd-size 15   # 축사 마릿수 지정
+"""Usage
+  python run_activity.py E:/Video/cow                # process every mp4 in the folder
+  python run_activity.py E:/Video/cow/cow01.mp4      # single video
+  python run_activity.py E:/Video/cow --reuse        # reuse detection/tracking, retune only linking/activity parameters
+  python run_activity.py E:/Video/cow --reuse --herd-size 15   # set the herd size of the barn
   python run_activity.py new_farm.mp4 --weights models/hanwoo_yolo11s.pt --cow-height 1.25
 """
 import argparse
@@ -15,16 +15,16 @@ from hanwoo.pipeline import process_video
 
 
 def main():
-    ap = argparse.ArgumentParser(description="한우 개체 ID 추적 및 활동량 측정")
-    ap.add_argument("source", help="동영상 파일 또는 폴더")
+    ap = argparse.ArgumentParser(description="Hanwoo individual ID tracking and activity measurement")
+    ap.add_argument("source", help="video file or folder")
     ap.add_argument("--weights", default=None)
     ap.add_argument("--out", default=str(OUTPUT_DIR))
-    ap.add_argument("--cow-height", type=float, default=None, help="원근 보정 기준 체고(m)")
-    ap.add_argument("--herd-size", type=int, default=0, help="축사 마릿수 N (0=자동 추정)")
-    ap.add_argument("--no-reid", action="store_true", help="ReID 고정 개체군 배정 대신 2단계 정합만 사용")
+    ap.add_argument("--cow-height", type=float, default=None, help="reference cow height (m) for perspective correction")
+    ap.add_argument("--herd-size", type=int, default=0, help="herd size N in the barn (0 = estimate automatically)")
+    ap.add_argument("--no-reid", action="store_true", help="use only two-stage linking instead of ReID fixed-herd assignment")
     ap.add_argument("--max-frames", type=int, default=0)
     ap.add_argument("--no-video", action="store_true")
-    ap.add_argument("--reuse", action="store_true", help="이전 검출·추적 결과(cache) 재사용, 정합·활동량만 재계산")
+    ap.add_argument("--reuse", action="store_true", help="reuse previous detection/tracking results (cache); recompute only linking and activity")
     a = ap.parse_args()
 
     cfg = PipelineConfig()
@@ -43,7 +43,7 @@ def main():
     results = []
     for v in videos:
         results.append(process_video(v, cfg, out, reuse=a.reuse))
-    # 기존 결과까지 포함해 index 갱신
+    # refresh index including earlier results
     allres = []
     for p in sorted(out.glob("*/result.json")):
         allres.append(json.loads(p.read_text(encoding="utf-8"))["result"])

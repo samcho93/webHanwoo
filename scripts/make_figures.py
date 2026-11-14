@@ -1,4 +1,4 @@
-"""강좌용 그림 생성 → site_src/assets/img/
+"""Generate figures for the course → site_src/assets/img/
 usage: python scripts/make_figures.py
 """
 import shutil
@@ -21,8 +21,7 @@ from hanwoo.stitching import body_px, clean_short, fit_perspective  # noqa: E402
 
 IMG = ROOT / "site_src/assets/img"
 VID = Path("E:/Video/cow")
-plt.rcParams["font.family"] = ["Malgun Gothic", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
+plt.rcParams["font.family"] = "DejaVu Sans"
 
 
 def frame(name, t):
@@ -46,7 +45,7 @@ def main():
                                        augment=aug, verbose=False)[0]
         cv2.imwrite(str(IMG / f"det_{tag}.jpg"), r.plot(line_width=1, font_size=8))
 
-    # 데이터셋 샘플: 무시영역이 있는 이미지
+    # dataset sample: an image containing ignore regions
     ds = ROOT / "data/hanwoo_ds"
     best = None
     for p in sorted((ds / "images/train").glob("cow04_*.jpg")):
@@ -64,13 +63,13 @@ def main():
                       (60, 220, 60), 2)
     cv2.imwrite(str(IMG / "ds_sample.jpg"), im)
 
-    # 학습 곡선
+    # training curves
     for src, dst in [("results.png", "train_results.png")]:
         p = ROOT / "runs/hanwoo/train" / src
         if p.exists():
             shutil.copy(p, IMG / dst)
 
-    # 결과 스냅샷
+    # result snapshot
     vid = ROOT / "outputs/cow04/cow04_tracked.mp4"
     if vid.exists():
         cap = cv2.VideoCapture(str(vid))
@@ -79,8 +78,11 @@ def main():
         if ok:
             cv2.imwrite(str(IMG / "snap_tracked.jpg"), f)
 
-    # 원근 모델 + tracklet 타임라인 (cow09)
-    name = "cow09"
+    plot_figures()
+
+
+def plot_figures(name="cow09"):
+    """Perspective model + tracklet timeline plots (from existing outputs/<name>/ CSVs only)."""
     raw = pd.read_csv(ROOT / f"outputs/{name}/tracks_raw.csv")
     fin = pd.read_csv(ROOT / f"outputs/{name}/tracks_activity.csv")
     cfg = PipelineConfig()
@@ -89,11 +91,11 @@ def main():
     cy = (clean.y1 + clean.y2) / 2
     h = clean.y2 - clean.y1
     fig, ax = plt.subplots(figsize=(7, 3.6), dpi=130)
-    ax.scatter(cy[::5], h[::5], s=3, alpha=.25, c="#b5562b", label="검출 박스")
+    ax.scatter(cy[::5], h[::5], s=3, alpha=.25, c="#b5562b", label="detection boxes")
     ys = np.linspace(cy.min(), cy.max(), 50)
     ax.plot(ys, body_px(ys, persp), c="#2f7a54", lw=2.5, label=f"h(y) = {persp[0]:.2f}·y + {persp[1]:.1f}")
-    ax.set_xlabel("bbox 중심 y (px)  ← 먼 곳 · 가까운 곳 →")
-    ax.set_ylabel("bbox 높이 (px)")
+    ax.set_xlabel("bbox centre y (px)  ← far · near →")
+    ax.set_ylabel("bbox height (px)")
     ax.legend()
     ax.grid(alpha=.3)
     fig.tight_layout()
@@ -102,8 +104,8 @@ def main():
 
     fps = 24.0
     fig, axs = plt.subplots(2, 1, figsize=(9, 6.5), dpi=130, sharex=True)
-    for ax, df, title in [(axs[0], clean, f"온라인 추적 (BoT-SORT) — {clean.tid.nunique()}개 ID"),
-                          (axs[1], fin, f"오프라인 정합 후 — {fin.tid.nunique()}개 ID")]:
+    for ax, df, title in [(axs[0], clean, f"Online tracking (BoT-SORT) — {clean.tid.nunique()} IDs"),
+                          (axs[1], fin, f"After offline linking — {fin.tid.nunique()} IDs")]:
         g = df.groupby("tid").frame.agg(["min", "max"]).sort_values("min")
         for k, (tid, r) in enumerate(g.iterrows()):
             b, gg, rr = id_color(int(tid))
@@ -113,7 +115,7 @@ def main():
         ax.set_ylabel("tracklet")
         ax.invert_yaxis()
         ax.grid(axis="x", alpha=.3)
-    axs[1].set_xlabel("시간 (s)")
+    axs[1].set_xlabel("Time (s)")
     fig.tight_layout()
     fig.savefig(IMG / "stitch_timeline.png")
     plt.close(fig)

@@ -1,65 +1,65 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>새 영상 적용과 확장 · 한우 활동량 AI 강좌</title>
+<title>Applying to New Videos and Extending · Hanwoo Activity AI Course</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <link rel="stylesheet" href="assets/style.css"></head><body>
-<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
-<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
-<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class='on'><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class=''><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li><li class=''><a href='13_paper.html'><span>14</span>논문: 고정 개체군 제약과 자기지도 ReID</a></li></ol>
-<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
-<main class="content"><div class="crumb">Lesson 12 / 14</div><h1>새 영상 적용과 확장</h1>
-<p class="lead">만든 시스템을 다른 축사·다른 카메라 영상에 적용하는 방법과, 더 높은 정확도를 위한 확장 방향을 정리합니다.</p>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="Menu">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 Hanwoo Activity AI</a>
+<div class="sub">YOLO · Tracking · Activity · Dashboard</div><ol><li class=''><a href='index.html'><span>00</span>Course Introduction and Overview</a></li><li class=''><a href='01_env.html'><span>01</span>Setting Up the Environment</a></li><li class=''><a href='02_data.html'><span>02</span>Understanding the Data (Barn Videos)</a></li><li class=''><a href='03_detect.html'><span>03</span>Object Detection: Trying Pretrained YOLO</a></li><li class=''><a href='04_dataset.html'><span>04</span>Building Training Data Automatically (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>Fine-tuning and Evaluating YOLO</a></li><li class=''><a href='06_tracking.html'><span>06</span>Multi-Object Tracking (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID Consistency: Offline Tracklet Stitching</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID Training and Fixed-Herd ID Keeping</a></li><li class=''><a href='08_activity.html'><span>09</span>Activity Measurement Algorithm</a></li><li class=''><a href='09_visualize.html'><span>10</span>Result Video and Dashboard</a></li><li class=''><a href='10_results.html'><span>11</span>Running All Videos and Analysing Results</a></li><li class='on'><a href='11_apply.html'><span>12</span>Applying to New Videos and Extending</a></li><li class=''><a href='12_live.html'><span>13</span>Real-Time Tracking App (RTSP Cameras)</a></li><li class=''><a href='13_paper.html'><span>14</span>Paper: Fixed-Herd Constraint and Self-Supervised ReID</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ Result dashboards</a></div></nav>
+<main class="content"><div class="crumb">Lesson 12 / 14</div><h1>Applying to New Videos and Extending</h1>
+<p class="lead">How to apply the system to videos from other barns and other cameras, and directions for extending it to achieve higher accuracy.</p>
 
-<h2>1. 다른 영상에 바로 적용</h2>
-<pre><code class="language-bash"># 단일 영상
+<h2>1. Applying it directly to other videos</h2>
+<pre><code class="language-bash"># single video
 python run_activity.py D:/farm2/cam1_0601.mp4
-# 폴더 전체, 결과 위치 지정
+# whole folder, with a custom output location
 python run_activity.py D:/farm2 --out D:/farm2_results
-# 소 체격이 다르면 원근 기준 체고 변경 (예: 송아지 위주 1.0m)
+# if the animals are a different size, change the reference height for perspective (e.g. mostly calves: 1.0 m)
 python run_activity.py D:/farm2 --cow-height 1.0
-# 대시보드·CSV 만 빠르게 (영상 렌더링 생략)
+# dashboard and CSV only, fast (skip video rendering)
 python run_activity.py D:/farm2 --no-video</code></pre>
-<p>원근 모델(<code>h(y)</code>)은 <b>영상마다 자동으로</b> 적합되므로 카메라 위치가 달라도 별도 설정이 필요 없습니다.</p>
+<p>The perspective model (<code>h(y)</code>) is fitted <b>automatically for each video</b>, so no extra setup is needed even if the camera position changes.</p>
 
-<h2>2. 새 축사에서 정확도가 떨어질 때: 재학습 루프</h2>
-<div class="flow"><div>새 영상 수집</div><i>→</i><div>prepare_dataset.py<br><small>자동 라벨</small></div><i>→</i><div>(선택) CVAT 검수</div><i>→</i><div>train.py<br><small>기존 hanwoo 모델에서 시작</small></div><i>→</i><div>run_activity.py</div></div>
+<h2>2. When accuracy drops in a new barn: the retraining loop</h2>
+<div class="flow"><div>Collect new videos</div><i>→</i><div>prepare_dataset.py<br><small>auto-labeling</small></div><i>→</i><div>(optional) review in CVAT</div><i>→</i><div>train.py<br><small>start from the existing hanwoo model</small></div><i>→</i><div>run_activity.py</div></div>
 <pre><code class="language-bash">python scripts/prepare_dataset.py D:/farm2 --out data/farm2_ds --val cam1_0601
 python scripts/train.py --data data/farm2_ds/hanwoo.yaml --model models/hanwoo_yolo11s.pt --epochs 40</code></pre>
-<div class="tip">여러 농장의 데이터셋을 합치려면 <code>hanwoo.yaml</code> 의 <code>train:</code> 에 이미지 폴더를 리스트로 여러 개 적으면 됩니다.</div>
+<div class="tip">To combine datasets from several farms, list multiple image folders under <code>train:</code> in <code>hanwoo.yaml</code>.</div>
 
-<h2>3. 파라미터 튜닝 가이드</h2>
-<table><tr><th>현상</th><th>조정</th></tr>
-<tr><td>멀리 있는 소를 자주 놓침</td><td><code>imgsz</code> 1280, <code>conf</code> 0.2</td></tr>
-<tr><td>ID 가 너무 자주 새로 생김</td><td>추적기 <code>new_track_thresh</code>↑, <code>track_buffer</code>↑, 정합 <code>stitch_max_gap_s</code>↑</td></tr>
-<tr><td>서로 다른 소가 같은 ID 로 합쳐짐</td><td><code>stitch_max_cost</code>↓, <code>stitch_app_weight</code>↑</td></tr>
-<tr><td>서 있는 소가 ‘Active’ 로 많이 나옴</td><td><code>rest_speed</code>↑ 또는 <code>motion_energy_active</code>↑ (조명 깜빡임·카메라 노이즈가 큰 경우)</td></tr>
-<tr><td>처리 속도가 느림</td><td>추적기 <code>with_reid: False</code>, <code>imgsz</code> 640, 영상 렌더링 생략(<code>--no-video</code>)</td></tr></table>
+<h2>3. Parameter tuning guide</h2>
+<table><tr><th>Symptom</th><th>Adjustment</th></tr>
+<tr><td>Distant animals are often missed</td><td><code>imgsz</code> 1280, <code>conf</code> 0.2</td></tr>
+<tr><td>New IDs are created too often</td><td>Tracker <code>new_track_thresh</code>↑, <code>track_buffer</code>↑, stitching <code>stitch_max_gap_s</code>↑</td></tr>
+<tr><td>Different animals are merged into the same ID</td><td><code>stitch_max_cost</code>↓, <code>stitch_app_weight</code>↑</td></tr>
+<tr><td>Standing animals often show up as ‘Active’</td><td><code>rest_speed</code>↑ or <code>motion_energy_active</code>↑ (when lighting flicker or camera noise is high)</td></tr>
+<tr><td>Processing is slow</td><td>Tracker <code>with_reid: False</code>, <code>imgsz</code> 640, skip video rendering (<code>--no-video</code>)</td></tr></table>
 
-<h2>4. 확장 방향</h2>
-<h3>(1) 호모그래피로 정확한 거리</h3>
+<h2>4. Extension directions</h2>
+<h3>(1) Accurate distance with a homography</h3>
 <pre><code class="language-python">import cv2, numpy as np
-img_pts   = np.float32([[150,190],[700,180],[840,300],[20,310]])   # 화면상 바닥 네 모서리
-world_pts = np.float32([[0,0],[20,0],[20,12],[0,12]])              # 실제 좌표(m)
+img_pts   = np.float32([[150,190],[700,180],[840,300],[20,310]])   # four floor corners on screen
+world_pts = np.float32([[0,0],[20,0],[20,12],[0,12]])              # real-world coordinates (m)
 Hm = cv2.getPerspectiveTransform(img_pts, world_pts)
-# 소의 발 위치(bbox 아래 중앙)를 바닥 좌표(m)로
+# animal's foot position (bottom center of bbox) to floor coordinates (m)
 foot = np.float32([[[cx, y2]]]); world = cv2.perspectiveTransform(foot, Hm)</code></pre>
-<p>바닥 면이 평면이라는 가정 하에 픽셀 → 실제 m 로 정확히 변환됩니다. 발이 펜스에 가리는 경우가 많으면 bbox 하단 대신 원근모델로 추정한 발 위치를 쓰세요.</p>
-<h3>(2) 여러 날에 걸친 개체 식별</h3>
-<p>레슨 08의 ReID 는 한 영상 안에서 N 마리를 구별합니다. 날짜가 다른 영상 사이에서 같은 소를 같은 번호로 부르려면, 각 소의 대표 임베딩을 “개체 대장”으로 저장해 두고 새 영상의 N 개 슬롯을 Hungarian 으로 대장에 대응시키면 됩니다. 귀표(이표) 번호 OCR 과 결합하면 실제 이력번호와 연결할 수도 있고, 소수 구간을 사람이 확인해 ReID 학습 데이터에 추가하면 정확도가 더 올라갑니다.</p>
-<h3>(3) 자세·행동 인식</h3>
-<p>누워 있음(lying)/서 있음(standing)/섭식(feeding) 을 클래스로 나눠 라벨링해 YOLO 를 다중 클래스로 학습하면, 반추·휴식 시간 같은 생리 지표를 직접 측정할 수 있습니다.</p>
-<h3>(4) 실시간 운영 (RTSP 카메라)</h3>
-<p><code>cv2.VideoCapture("rtsp://...")</code> 로 IP 카메라 스트림을 읽고, 온라인 추적 + 일정 주기(예: 10분)마다 오프라인 정합·집계를 수행하여 DB(예: SQLite, InfluxDB)에 저장, 대시보드를 주기적으로 갱신하는 구조로 확장할 수 있습니다.</p>
-<h3>(5) 이상 개체 알림</h3>
-<p>개체별 일일 활동지수의 기준선(최근 7일 평균 ± 표준편차)을 만들고, 크게 벗어나면 알림: 활동 급증 → 발정 의심, 활동 급감 → 질병·파행 의심.</p>
+<p>Assuming the floor is a plane, this converts pixels to real meters accurately. If the feet are often hidden by the fence, use the foot position estimated from the perspective model instead of the bottom of the bbox.</p>
+<h3>(2) Identifying animals across multiple days</h3>
+<p>The ReID in Lesson 08 distinguishes N animals within a single video. To call the same animal by the same number across videos from different days, store each animal's representative embedding in an “animal registry” and match the N slots of a new video to the registry with the Hungarian algorithm. Combining this with OCR of ear-tag numbers can link animals to their real traceability numbers, and having a person verify a few segments and adding them to the ReID training data improves accuracy further.</p>
+<h3>(3) Posture and behavior recognition</h3>
+<p>If you label lying / standing / feeding as separate classes and train YOLO as a multi-class model, you can directly measure physiological indicators such as rumination and resting time.</p>
+<h3>(4) Real-time operation (RTSP camera)</h3>
+<p>The system can be extended to read an IP camera stream with <code>cv2.VideoCapture("rtsp://...")</code>, run online tracking, perform offline stitching and aggregation at a fixed interval (e.g. every 10 minutes), store the results in a database (e.g. SQLite, InfluxDB), and refresh the dashboard periodically.</p>
+<h3>(5) Abnormal-animal alerts</h3>
+<p>Build a baseline of each animal's daily activity index (mean ± standard deviation over the last 7 days) and raise an alert on large deviations: sharp rise in activity → possible estrus; sharp drop → possible illness or lameness.</p>
 
-<h2>마치며</h2>
-<p>이 강좌에서 만든 것은 <b>검출 → 추적 → 정합 → 측정 → 시각화</b>로 이어지는 완결된 파이프라인입니다. 각 단계가 독립된 모듈이므로, 더 좋은 검출기·추적기·지표가 생기면 해당 모듈만 교체하면 됩니다.</p>
+<h2>Wrapping up</h2>
+<p>What this course built is a complete pipeline running <b>detection → tracking → stitching → measurement → visualization</b>. Each stage is an independent module, so when a better detector, tracker or metric comes along, you only need to swap that module.</p>
 
-<div class="pager"><a href='10_results.html'>← 전체 영상 실행과 결과 분석</a><a class='nx' href='12_live.html'>실시간 추적 프로그램 (RTSP 카메라) →</a></div></main>
+<div class="pager"><a href='10_results.html'>← Running All Videos and Analysing Results</a><a class='nx' href='12_live.html'>Real-Time Tracking App (RTSP Cameras) →</a></div></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
-b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='Copy';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/Copy$/,''));b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200)};p.appendChild(b)});</script>
 </body></html>

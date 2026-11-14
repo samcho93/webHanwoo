@@ -1,78 +1,78 @@
-<p class="lead">레슨 07의 정합은 “잠깐 끊긴” 소를 잇는 데는 강하지만, 22분짜리 cow03 처럼 소들이 모였다 흩어지기를 반복하면 ID 가 29개(실제 약 15마리)로 남았습니다. 이 레슨에서는 두 가지를 더합니다. ① 소 한 마리 한 마리를 외형으로 구별하는 <b>ReID(재식별) 모델</b>을 사람 라벨 없이 학습하고, ② <b>“축사의 마릿수는 고정”</b>이라는 조건을 이용해 모든 tracklet 을 정확히 N 개의 개체에 배정합니다.</p>
+<p class="lead">The stitching in Lesson 07 is good at joining cattle that were “briefly lost”, but when cattle repeatedly gather and disperse, as in the 22-minute cow03, 29 IDs remained (for about 15 actual animals). This lesson adds two things: ① a <b>re-identification (ReID) model</b> that tells individual animals apart by appearance, trained without human labels, and ② the constraint that <b>“the number of animals in the pen is fixed”</b>, used to assign every tracklet to exactly N individuals.</p>
 
-<pre><code class="language-plaintext">YOLO 검출 → BoT-SORT 추적 → 1차 정합(짧은 끊김, 레슨 07)
-   → ReID 임베딩 추출 (4프레임마다, 소 crop → 256차원 벡터)
-   → ① ID 스왑 분리   : 다른 소와 겹친 직후 외형이 바뀌면 tracklet 을 자름
-   → ② 마릿수 N 추정  : 동시 검출 수
-   → ③ 고정 N 슬롯 배정: 시간 겹침 금지 + 외형 + 움직임 비용, 긴 tracklet 부터 탐욕 배정 → 반복 개선(ICM)
-   → ID 1..N</code></pre>
+<pre><code class="language-plaintext">YOLO detection → BoT-SORT tracking → first stitching pass (short breaks, Lesson 07)
+   → ReID embedding extraction (every 4 frames, cattle crop → 256-dim vector)
+   → ① ID swap splitting : cut a tracklet if its appearance changes right after overlapping another animal
+   → ② herd size N estimate : number of simultaneous detections
+   → ③ fixed N-slot assignment: no time overlap + appearance + motion cost, greedy assignment from the longest tracklets → iterative refinement (ICM)
+   → IDs 1..N</code></pre>
 
-<h2>1. ReID 학습 데이터: 추적 결과가 곧 라벨</h2>
-<p>사람이 소마다 이름을 붙이지 않아도, 추적 결과에는 두 가지 확실한 정보가 들어 있습니다.</p>
+<h2>1. ReID training data: the tracking output is the label</h2>
+<p>Even without people naming each animal, the tracking output contains two reliable pieces of information.</p>
 <ul>
-<li><b>같은 tracklet 안의 crop → 같은 소</b> (positive)</li>
-<li><b>같은 순간에 화면에 함께 있는 다른 tracklet → 반드시 다른 소</b> (negative). 한 소가 동시에 두 곳에 있을 수는 없으니까요.</li>
+<li><b>Crops within the same tracklet → the same animal</b> (positive)</li>
+<li><b>Other tracklets on screen at the same moment → definitely different animals</b> (negative). After all, one animal can't be in two places at once.</li>
 </ul>
-<p>짧은 영상(1~2분)은 정합 후 ID 가 거의 마릿수와 같으므로 최종 ID 를 라벨로, 긴 영상(cow03)은 정합 전 tracklet 을 라벨로 씁니다. 같은 소가 여러 tracklet 으로 쪼개져 있을 수 있기 때문에, 긴 영상에서는 <b>임의 시각 t 에 동시에 존재하는 tracklet 끼리만</b> 한 배치에 넣습니다. 또 다른 영상의 같은 소가 negative 로 들어가지 않도록 <b>한 배치는 한 영상에서만</b> 뽑습니다.</p>
-<p>깨끗한 crop 만 사용합니다: 신뢰도 ≥ 0.5, 보간 프레임 제외, 다른 소와의 IoU &lt; 0.15, 높이 ≥ 24px. 결과는 10개 영상에서 약 2만 4천 장입니다.</p>
-<figure><img src="assets/img/reid_samples.jpg"><figcaption>cow04 의 ID 별 crop (한 행 = 한 마리, 시간 순). 128×128 회색 캔버스에 비율 유지(letterbox)</figcaption></figure>
+<p>For short videos (1–2 min), the number of IDs after stitching is nearly the herd size, so we use the final IDs as labels; for the long video (cow03), we use the pre-stitching tracklets as labels. Because the same animal may be split across several tracklets, for the long video we put <b>only tracklets that coexist at some time t</b> into one batch. Also, so that the same animal from another video never shows up as a negative, <b>each batch is drawn from a single video</b>.</p>
+<p>Only clean crops are used: confidence ≥ 0.5, interpolated frames excluded, IoU with other cattle &lt; 0.15, height ≥ 24px. The result is about 24,000 images from 10 videos.</p>
+<figure><img src="assets/img/reid_samples.jpg"><figcaption>Crops per ID from cow04 (one row = one animal, in time order), letterboxed onto a 128×128 gray canvas preserving aspect ratio</figcaption></figure>
 <!--CODE:scripts/prepare_reid.py-->
 
-<h2>2. 모델과 손실 함수</h2>
+<h2>2. Model and loss functions</h2>
 <ul>
-<li><b>백본</b>: ImageNet 사전학습 ResNet50, 마지막 stride 를 1로 바꿔 작은 소 crop(128px)에서도 8×8 특징맵 유지</li>
-<li><b>헤드</b>: GAP → BatchNorm → Linear(256) → L2 정규화 → 코사인 유사도로 비교</li>
-<li><b>배치</b>: P×K 샘플링 (P=12 마리 × K=4 장)</li>
-<li><b>손실</b>: Supervised Contrastive(온도 0.1) + Batch-hard Triplet(margin 0.3)</li>
-<li><b>증강</b>: 좌우반전, 약한 스케일·이동, 밝기·대비, random erasing(펜스 가림 모사). <b>색상(hue)은 바꾸지 않습니다</b>. 털색 농도는 개체를 구분하는 단서이기 때문입니다.</li>
+<li><b>Backbone</b>: ImageNet-pretrained ResNet50 with the last stride changed to 1, keeping an 8×8 feature map even for small cattle crops (128px)</li>
+<li><b>Head</b>: GAP → BatchNorm → Linear(256) → L2 normalization → compared by cosine similarity</li>
+<li><b>Batches</b>: P×K sampling (P=12 animals × K=4 images)</li>
+<li><b>Loss</b>: Supervised Contrastive (temperature 0.1) + batch-hard triplet (margin 0.3)</li>
+<li><b>Augmentation</b>: horizontal flip, mild scaling and translation, brightness and contrast, random erasing (simulating fence occlusion). <b>We do not change hue</b>, because coat shade is a cue for telling individuals apart.</li>
 </ul>
 <!--CODE:hanwoo/reid.py:1-50-->
 <!--CODE:scripts/train_reid.py:35-102-->
 
-<h2>3. 학습과 평가</h2>
+<h2>3. Training and evaluation</h2>
 <pre><code class="language-bash">python scripts/prepare_reid.py E:/Video/cow
-python scripts/train_reid.py --iters 3000          # cow02, cow09 는 검증용으로 제외</code></pre>
-<p><b>평가 방법</b>: 검증 영상에서 각 소의 <b>앞 절반</b> 평균 임베딩을 갤러리로 두고, <b>뒤 절반</b>의 2초 구간마다 “같은 영상의 10~12마리 중 누구인가” 를 맞힌 비율(Rank-1)을 잽니다.</p>
+python scripts/train_reid.py --iters 3000          # cow02 and cow09 are held out for validation</code></pre>
+<p><b>Evaluation method</b>: in each validation video, the mean embedding of each animal's <b>first half</b> forms the gallery, and for every 2-second segment of the <b>second half</b> we measure the fraction correctly identified as “which of the 10–12 animals in the same video is this?” (Rank-1).</p>
 <div class="tbl"><table>
-<tr><th>외형 특징</th><th>cow02 (12마리)</th><th>cow09 (10마리)</th></tr>
-<tr><td>HSV 색 히스토그램 (레슨 07)</td><td>0.605</td><td>0.575</td></tr>
-<tr><td>ImageNet ResNet50 (학습 없음)</td><td>0.617</td><td>0.625</td></tr>
-<tr><td>ReID v1 — 전체 학습률 3e-4</td><td>0.574</td><td>0.783</td></tr>
-<tr><td><b>ReID v2 — 백본 5e-5 / 헤드 1e-3 (채택)</b></td><td><b>0.637</b></td><td><b>0.783</b></td></tr>
+<tr><th>Appearance feature</th><th>cow02 (12 animals)</th><th>cow09 (10 animals)</th></tr>
+<tr><td>HSV color histogram (Lesson 07)</td><td>0.605</td><td>0.575</td></tr>
+<tr><td>ImageNet ResNet50 (no training)</td><td>0.617</td><td>0.625</td></tr>
+<tr><td>ReID v1 — learning rate 3e-4 for everything</td><td>0.574</td><td>0.783</td></tr>
+<tr><td><b>ReID v2 — backbone 5e-5 / head 1e-3 (adopted)</b></td><td><b>0.637</b></td><td><b>0.783</b></td></tr>
 </table></div>
-<div class="tip"><b>학습률 교훈</b>: v1 은 사전학습 백본까지 큰 학습률로 바꾸다 보니 cow02 에서 오히려 색 히스토그램보다 나빠졌습니다. 백본은 작게, 새로 붙인 헤드는 크게 학습률을 나누자 두 검증 영상 모두에서 가장 좋았습니다.</div>
-<div class="note"><b>정직한 한계</b>: 평가 라벨도 정합 결과에서 왔으므로 정합 오류가 섞여 있어 점수 상한이 낮게 나옵니다. 한우는 털색이 거의 같고, 화면에서 30~100px 로 작으며, 펜스 뒤에 가려진 경우가 많아 <b>외형만으로는 60~80% 수준</b>입니다. 그래서 다음 절에서 외형을 <b>움직임·시간 제약</b>과 결합합니다.</div>
+<div class="tip"><b>Learning-rate lesson</b>: v1 changed even the pretrained backbone with a large learning rate, and on cow02 it ended up worse than the color histogram. Splitting the learning rates — small for the backbone, large for the newly added head — gave the best results on both validation videos.</div>
+<div class="note"><b>Honest limitations</b>: the evaluation labels also come from the stitching output, so they contain stitching errors and the score ceiling comes out low. Hanwoo have nearly identical coat colors, appear small on screen (30–100px), and are often hidden behind fences, so <b>appearance alone reaches only about 60–80%</b>. That is why the next section combines appearance with <b>motion and time constraints</b>.</div>
 
-<h2>4. 고정 개체군 ID 배정 알고리즘</h2>
-<h3>① ID 스왑 분리</h3>
-<p>온라인 추적기는 두 소가 겹칠 때 ID 를 바꿔 다는 경우가 있습니다(스왑). 다른 소와 겹친(IoU ≥ 0.2) 순간마다 <b>앞 4초와 뒤 4초의 평균 임베딩</b>을 비교해, 코사인 유사도가 0.55 미만이면 그 지점에서 tracklet 을 자릅니다.</p>
-<div class="tbl"><table><tr><th>임계값 0.55 보정 결과</th><th>cow02</th><th>cow09</th></tr>
-<tr><td>같은 소의 연속 4초 구간을 잘못 자르는 비율</td><td>0.0%</td><td>1.0%</td></tr>
-<tr><td>다른 소로 바뀐 구간을 잡아내는 비율</td><td>81%</td><td>99%</td></tr></table></div>
-<h3>② 마릿수 N 추정</h3>
-<p>신뢰도 0.4 이상 검출이 동시에 N 개 이상인 프레임이 전체의 1% 이상인 가장 큰 N. cow03 에서는 15입니다. 마릿수를 알고 있다면 <code>--herd-size 15</code> 로 지정하세요.</p>
-<h3>③ N 개 슬롯 배정 (제약 있는 군집화)</h3>
+<h2>4. Fixed-herd ID assignment algorithm</h2>
+<h3>① ID swap splitting</h3>
+<p>Online trackers sometimes swap IDs when two animals overlap (an ID switch). At every moment of overlap with another animal (IoU ≥ 0.2), we compare the <b>mean embeddings of the 4 seconds before and the 4 seconds after</b>, and if the cosine similarity is below 0.55 we cut the tracklet at that point.</p>
+<div class="tbl"><table><tr><th>Calibration result for threshold 0.55</th><th>cow02</th><th>cow09</th></tr>
+<tr><td>Rate of wrongly cutting consecutive 4 s segments of the same animal</td><td>0.0%</td><td>1.0%</td></tr>
+<tr><td>Rate of catching segments where the animal changed</td><td>81%</td><td>99%</td></tr></table></div>
+<h3>② Estimating herd size N</h3>
+<p>The largest N such that frames with at least N simultaneous detections of confidence ≥ 0.4 make up at least 1% of all frames. For cow03 it is 15. If you know the herd size, specify it with <code>--herd-size 15</code>.</p>
+<h3>③ Assigning to N slots (constrained clustering)</h3>
 <ul>
-<li><b>제약</b>: 한 소는 같은 시각에 두 곳에 있을 수 없음 → 시간이 0.5초 넘게 겹치는 tracklet 은 같은 슬롯 불가</li>
-<li><b>움직임 게이트</b>: 슬롯의 직전 tracklet 끝 위치 → 새 tracklet 시작 위치까지 거리가 <code>(2 + 0.5×공백초) × 1.5</code> 몸길이를 넘으면 불가</li>
-<li><b>비용</b> = 0.7 × 외형거리(1 − 코사인; 시간상 이웃 tracklet 과 슬롯 전체 평균) + 0.3 × 움직임 비용 + 0.05 × 공백 비용</li>
-<li><b>탐욕 배정</b>: 긴(=신뢰도 높은) tracklet 부터 가장 싼 슬롯에. 들어갈 슬롯이 없거나 비용이 0.45 보다 나쁘고 슬롯이 N 개 미만이면 새 슬롯</li>
-<li><b>반복 개선(ICM)</b>: 짧은 tracklet 부터 하나씩 빼서 “나머지 배정은 고정” 한 상태의 최적 슬롯으로 옮기기를 변화가 없을 때까지 반복</li>
-<li>N 개 슬롯 어디에도 넣을 수 없는 tracklet(동시 검출이 N 초과: 한 소에 박스 2개, 오검출)은 제외하고 비율을 보고합니다(cow03: 검출의 3%)</li>
+<li><b>Constraint</b>: one animal cannot be in two places at the same time → tracklets overlapping in time by more than 0.5 s cannot share a slot</li>
+<li><b>Motion gate</b>: not allowed if the distance from the end of the slot's previous tracklet to the start of the new tracklet exceeds <code>(2 + 0.5×gap seconds) × 1.5</code> body lengths</li>
+<li><b>Cost</b> = 0.7 × appearance distance (1 − cosine; against temporally neighboring tracklets and the slot's overall mean) + 0.3 × motion cost + 0.05 × gap cost</li>
+<li><b>Greedy assignment</b>: starting from the longest (= most reliable) tracklets, put each into the cheapest slot. If no slot fits, or the cost is worse than 0.45 and there are fewer than N slots, open a new slot</li>
+<li><b>Iterative refinement (ICM)</b>: starting from the shortest tracklets, remove each one and move it to the best slot “with all other assignments fixed”; repeat until nothing changes</li>
+<li>Tracklets that fit into none of the N slots (simultaneous detections exceeding N: two boxes on one animal, false positives) are excluded and their share is reported (cow03: 3% of detections)</li>
 </ul>
 <!--CODE:hanwoo/identity.py-->
 <!--CODE:hanwoo/config.py:41-54-->
 
-<h2>5. cow03 결과: 29 → 15 ID</h2>
-<p><b>ID 콘택트 시트</b>: 한 행이 한 ID, 열은 영상 전체를 12구간으로 나눈 시각입니다. 한 행이 처음부터 끝까지 같은 소로 보이면 ID 가 유지된 것이고, 빈칸은 그 ID 가 보이지 않던 구간입니다.</p>
+<h2>5. cow03 results: 29 → 15 IDs</h2>
+<p><b>ID contact sheet</b>: each row is one ID, and the columns are time points dividing the whole video into 12 segments. If a row shows the same animal from start to finish, the ID was kept; empty cells are segments where that ID was not visible.</p>
 <div class="two">
-<figure><img src="assets/img/idsheet_cow03_before.jpg"><figcaption>이전: 2단계 정합만 (29 ID). 아래쪽 ID 들은 수 분만 살다 사라짐</figcaption></figure>
-<figure><img src="assets/img/idsheet_cow03_after.jpg"><figcaption>이후: ReID + 고정 개체군 배정 (15 ID, 모두 영상 전체에 걸쳐 존재)</figcaption></figure>
+<figure><img src="assets/img/idsheet_cow03_before.jpg"><figcaption>Before: two-pass stitching only (29 IDs). The lower IDs live for only a few minutes and disappear</figcaption></figure>
+<figure><img src="assets/img/idsheet_cow03_after.jpg"><figcaption>After: ReID + fixed-herd assignment (15 IDs, all spanning the entire video)</figcaption></figure>
 </div>
-<div class="note"><b>남은 오류</b>: 사료조 앞 펜스 뒤에 소들이 빽빽하게 붙어 있거나, 화면 왼쪽 위 뿌연 영역에 있을 때는 crop 이 흐려 외형 정보가 거의 없습니다. 그런 구간에서는 일부 행에 다른 소가 섞입니다(시트에서 흐린 crop 이 있는 행). 정답 라벨이 없으므로 정확도는 콘택트 시트로 눈으로 확인하는 것이 현재 가장 신뢰할 수 있는 검증입니다. 더 개선하려면 소수 구간을 사람이 확인해 ReID 학습 데이터에 추가하거나, 귀표 번호 인식을 결합하세요.</div>
+<div class="note"><b>Remaining errors</b>: when cattle are packed tightly behind the fence in front of the feed bunk, or are in the hazy area at the top left of the frame, the crops are blurry and carry almost no appearance information. In those segments some rows get mixed with other animals (rows with blurry crops in the sheet). With no ground-truth labels, visually checking the contact sheet is currently the most reliable validation. To improve further, have people check a few segments and add them to the ReID training data, or combine with ear-tag number recognition.</div>
 
-<h2>6. 사용법</h2>
-<pre><code class="language-bash"># ReID 모델(models/hanwoo_reid.pt)이 있으면 자동으로 고정 개체군 배정 사용
+<h2>6. Usage</h2>
+<pre><code class="language-bash"># if a ReID model (models/hanwoo_reid.pt) exists, fixed-herd assignment is used automatically
 python run_activity.py E:/Video/cow/cow03.mp4
-python run_activity.py E:/Video/cow --reuse --herd-size 15    # 마릿수 지정, 검출·임베딩 캐시 재사용
-python scripts/identity_sheet.py outputs/cow03                # ID 콘택트 시트 생성</code></pre>
+python run_activity.py E:/Video/cow --reuse --herd-size 15    # set herd size, reuse detection/embedding cache
+python scripts/identity_sheet.py outputs/cow03                # generate the ID contact sheet</code></pre>

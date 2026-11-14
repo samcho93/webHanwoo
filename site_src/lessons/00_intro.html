@@ -1,56 +1,56 @@
-<p class="lead">고정 카메라로 촬영한 한우 축사 영상에서 <b>소 한 마리 한 마리에 ID를 부여</b>하고, 각 개체의 <b>이동거리·속도·행동 상태·활동지수</b>를 자동으로 측정하는 파이썬 프로그램을 처음부터 끝까지 만들어 봅니다. 사전학습 YOLO를 그대로 쓰는 데서 멈추지 않고, 축사 환경에 맞게 <b>직접 학습</b>시키고, 추적 ID가 끊기는 문제를 <b>오프라인 정합 알고리즘</b>으로 해결합니다.</p>
+<p class="lead">In this course we build, from start to finish, a Python program that takes video of a Hanwoo (Korean native cattle) barn shot with a fixed camera, <b>assigns an ID to every individual animal</b>, and automatically measures each animal's <b>distance travelled, speed, behavior state and activity index</b>. We don't stop at using a pretrained YOLO as-is: we <b>train it ourselves</b> to fit the barn environment, and we fix broken tracking IDs with an <b>offline stitching algorithm</b>.</p>
 
-<figure><img src="assets/img/snap_tracked.jpg" alt="ID가 부여된 결과 영상 프레임"><figcaption>최종 결과 영상 — 개체별 ID 박스·이동 궤적·실시간 활동량 패널</figcaption></figure>
+<figure><img src="assets/img/snap_tracked.jpg" alt="Output video frame with assigned IDs"><figcaption>Final output video — per-animal ID boxes, movement trails and a live activity panel</figcaption></figure>
 
-<h2>무엇을 만드나</h2>
-<div class="flow"><div>축사 영상</div><i>→</i><div>① 검출<br><small>YOLO11 (미세조정)</small></div><i>→</i><div>② 온라인 추적<br><small>BoT-SORT</small></div><i>→</i><div>③ ID 정합<br><small>Tracklet stitching</small></div><i>→</i><div>④ 활동량<br><small>원근보정 속도·상태</small></div><i>→</i><div>⑤ 영상+대시보드</div></div>
+<h2>What we will build</h2>
+<div class="flow"><div>Barn video</div><i>→</i><div>① Detection<br><small>YOLO11 (fine-tuned)</small></div><i>→</i><div>② Online tracking<br><small>BoT-SORT</small></div><i>→</i><div>③ ID stitching<br><small>Tracklet stitching</small></div><i>→</i><div>④ Activity<br><small>Perspective-corrected speed &amp; state</small></div><i>→</i><div>⑤ Video + dashboard</div></div>
 
 <table>
-<tr><th>단계</th><th>핵심 기술</th><th>해결하는 문제</th></tr>
-<tr><td>검출</td><td>YOLO11s 를 축사 영상으로 미세조정 (teacher-student 자동 라벨링)</td><td>원거리·가려진 소의 낮은 신뢰도, 사료 곤포(베일)를 동물로 오검출</td></tr>
-<tr><td>온라인 추적</td><td>BoT-SORT (Kalman 필터 + Hungarian 매칭 + ReID)</td><td>프레임 간 같은 소를 같은 ID로 연결</td></tr>
-<tr><td>ID 정합</td><td>원근 정규화 거리 + 외형 히스토그램 비용 → Hungarian 최적 연결</td><td>기둥·펜스 뒤로 사라졌다 나타날 때 ID가 바뀌는 문제</td></tr>
-<tr><td>활동량</td><td>체고 기준 원근 보정, 중앙차분 속도, 프레임차 motion energy</td><td>화면 위·아래에서 같은 이동이 다른 픽셀 거리로 보이는 문제, bbox 떨림</td></tr>
-<tr><td>시각화</td><td>OpenCV + FFmpeg(H.264), Plotly 대시보드</td><td>사람이 바로 이해할 수 있는 결과물</td></tr>
+<tr><th>Stage</th><th>Key technique</th><th>Problem it solves</th></tr>
+<tr><td>Detection</td><td>Fine-tune YOLO11s on barn video (teacher-student auto-labeling)</td><td>Low confidence on distant or occluded cattle; feed bales falsely detected as animals</td></tr>
+<tr><td>Online tracking</td><td>BoT-SORT (Kalman filter + Hungarian matching + ReID)</td><td>Linking the same animal to the same ID across frames</td></tr>
+<tr><td>ID stitching</td><td>Perspective-normalized distance + appearance histogram cost → optimal Hungarian linking</td><td>IDs changing when an animal disappears behind a pillar or fence and reappears</td></tr>
+<tr><td>Activity</td><td>Perspective correction based on body height, central-difference speed, frame-difference motion energy</td><td>The same movement looking like different pixel distances at the top vs. bottom of the frame; bbox jitter</td></tr>
+<tr><td>Visualization</td><td>OpenCV + FFmpeg (H.264), Plotly dashboard</td><td>Outputs that people can understand at a glance</td></tr>
 </table>
 
-<h2>프로젝트 구조</h2>
+<h2>Project structure</h2>
 <pre><code class="language-plaintext">webHanwoo/
-├─ hanwoo/                  # 핵심 패키지
-│  ├─ config.py             # 모든 파라미터 (한 곳에서 튜닝)
-│  ├─ detect_track.py       # ① 검출 + ② 온라인 추적 + 특징 수집
-│  ├─ stitching.py          # ③ 원근 모델 + tracklet 정합 + 보간
-│  ├─ reid.py               # ③' 소 재식별(ReID) 모델 · crop · 임베딩
-│  ├─ identity.py           # ③' 스왑 분리 + 고정 개체군(N) ID 배정
-│  ├─ online.py             # 실시간: 마릿수 카운트 + 온라인 ID 유지 + 활동량
-│  ├─ live.py               # 실시간 엔진 (파일 · RTSP · 웹캠)
-│  ├─ live_gui.py           # 실시간 프로그램 창 (PySide6)
-│  ├─ activity.py           # ④ 속도·상태·활동지수
-│  ├─ render.py             # ⑤ 결과 영상 렌더링
-│  ├─ dashboard.py          # ⑤ HTML 대시보드
-│  └─ pipeline.py           # 전체 연결
-├─ configs/hanwoo_botsort.yaml  # 축사용 추적기 설정
+├─ hanwoo/                  # core package
+│  ├─ config.py             # all parameters (tune in one place)
+│  ├─ detect_track.py       # ① detection + ② online tracking + feature collection
+│  ├─ stitching.py          # ③ perspective model + tracklet stitching + interpolation
+│  ├─ reid.py               # ③' cattle re-identification (ReID) model · crop · embedding
+│  ├─ identity.py           # ③' swap splitting + fixed-herd (N) ID assignment
+│  ├─ online.py             # real-time: herd count + online ID keeping + activity
+│  ├─ live.py               # real-time engine (file · RTSP · webcam)
+│  ├─ live_gui.py           # real-time program window (PySide6)
+│  ├─ activity.py           # ④ speed · state · activity index
+│  ├─ render.py             # ⑤ output video rendering
+│  ├─ dashboard.py          # ⑤ HTML dashboard
+│  └─ pipeline.py           # wires everything together
+├─ configs/hanwoo_botsort.yaml  # tracker settings for the barn
 ├─ scripts/
-│  ├─ prepare_dataset.py    # 자동 라벨링으로 학습 데이터 구축
-│  ├─ train.py              # YOLO 미세조정
-│  ├─ prepare_reid.py       # ReID 자기지도 데이터
-│  ├─ train_reid.py         # ReID 학습·평가
-│  ├─ identity_sheet.py     # ID 콘택트 시트
-│  ├─ compare_trackers.py   # 추적 알고리즘 비교 실험
-│  └─ build_site.py         # 이 강좌 사이트 생성
-├─ run_activity.py          # ★ 실행 진입점 (폴더/파일)
-├─ models/                  # 가중치 (hanwoo_yolo11s.pt)
-├─ outputs/                 # 영상별 결과 + index.html
-└─ site/                    # 강좌 사이트</code></pre>
+│  ├─ prepare_dataset.py    # build training data by auto-labeling
+│  ├─ train.py              # YOLO fine-tuning
+│  ├─ prepare_reid.py       # self-supervised ReID data
+│  ├─ train_reid.py         # ReID training and evaluation
+│  ├─ identity_sheet.py     # ID contact sheet
+│  ├─ compare_trackers.py   # tracking algorithm comparison experiment
+│  └─ build_site.py         # generates this course site
+├─ run_activity.py          # ★ entry point (folder/file)
+├─ models/                  # weights (hanwoo_yolo11s.pt)
+├─ outputs/                 # per-video results + index.html
+└─ site/                    # course site</code></pre>
 
-<h2>한 줄 실행</h2>
+<h2>Run it in one line</h2>
 <pre><code class="language-bash">python run_activity.py E:/Video/cow</code></pre>
-<p>폴더 안의 모든 mp4 마다 <code>outputs/&lt;영상명&gt;/</code> 에 결과 영상(<code>*_tracked.mp4</code>), 프레임별 데이터(<code>tracks_activity.csv</code>), 개체 요약(<code>summary.csv</code>), 대시보드(<code>dashboard.html</code>)가 만들어지고, <code>outputs/index.html</code> 에 전체 요약이 생성됩니다.</p>
+<p>For every mp4 in the folder, <code>outputs/&lt;video_name&gt;/</code> receives an output video (<code>*_tracked.mp4</code>), per-frame data (<code>tracks_activity.csv</code>), a per-animal summary (<code>summary.csv</code>) and a dashboard (<code>dashboard.html</code>), and an overall summary is generated in <code>outputs/index.html</code>.</p>
 
-<h2>수강 준비물</h2>
+<h2>What you need</h2>
 <ul>
-<li>NVIDIA GPU 가 있는 Windows/Linux PC (본 강좌: TITAN RTX 24GB, Windows 11). GPU 없이도 동작하지만 느립니다.</li>
-<li>파이썬 기초(함수, 리스트), pandas/NumPy 를 들어본 정도</li>
-<li>축사 영상 (본 강좌: 854×480, 24fps, 10개 · 총 약 30분)</li>
+<li>A Windows/Linux PC with an NVIDIA GPU (this course: TITAN RTX 24GB, Windows 11). It works without a GPU, but slowly.</li>
+<li>Basic Python (functions, lists), and at least having heard of pandas/NumPy</li>
+<li>Barn video (this course: 854×480, 24fps, 10 clips · about 30 minutes in total)</li>
 </ul>
-<div class="tip">각 레슨의 코드 블록은 저장소의 <b>실제 소스 파일에서 자동으로 삽입</b>됩니다. 강좌와 코드가 항상 일치합니다.</div>
+<div class="tip">The code blocks in each lesson are <b>inserted automatically from the actual source files</b> in the repository, so the course and the code always match.</div>

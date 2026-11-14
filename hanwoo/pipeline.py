@@ -1,4 +1,4 @@
-"""전체 파이프라인: 영상 1개 → outputs/<name>/ (영상, CSV, JSON, 대시보드)."""
+"""Full pipeline: one video → outputs/<name>/ (video, CSV, JSON, dashboard)."""
 from __future__ import annotations
 
 import json
@@ -31,7 +31,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     print(f"=== {name} ===")
     cache = out_dir / "cache_track.npz"
     if reuse and cache.exists():
-        # 검출·추적 결과 재사용 → 정합·활동량 파라미터만 빠르게 다시 튜닝할 때
+        # reuse detection/tracking results → for quickly retuning linking/activity parameters
         z = np.load(cache, allow_pickle=True)
         raw = pd.read_csv(out_dir / "tracks_raw.csv")
         feats = {(int(f), int(t)): v for (f, t), v in zip(z["keys"], z["vals"].astype(np.float32))}
@@ -48,8 +48,8 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     fps = meta["fps"]
     raw_ids = raw.tid.nunique()
 
-    raw = raw.assign(rtid=raw.tid)                 # 추적기 원본 id (ReID 임베딩 연결용)
-    # 검출 영역(ROI): 축사 밖·흐린 배경의 오검출 박스 제거 (configs/zones/<영상>.json)
+    raw = raw.assign(rtid=raw.tid)                 # original tracker id (links ReID embeddings)
+    # detection zones (ROI): drop false-positive boxes outside the barn / on blurry background (configs/zones/<video>.json)
     zpath = Path(cfg.zones_file) if cfg.zones_file else zones_path_for(video_path)
     zf = ZoneFilter(load_zones(zpath), meta["width"], meta["height"])
     n_zone = 0
@@ -68,7 +68,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     use_id = cfg.use_identity and Path(cfg.reid_weights).exists()
     id_stats, splits = None, []
     if use_id:
-        # (A) 고정 개체군: 짧은 끊김만 정합 → ReID 스왑 분리 → N 개 슬롯 배정
+        # (A) fixed herd: link short gaps only → ReID swap splitting → assign to N slots
         stitched, feats, links = stitch_tracklets(clean, feats, fps, cfg, persp, stages=("short",))
         emb_df, emb = load_or_extract_embeddings(video_path, raw, out_dir, cfg, reuse)
         embs = attach_embeddings(stitched, emb_df, emb)
@@ -77,7 +77,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
         stitched, id_stats, _ = assign_identities(stitched, embs, fps, persp, n_herd, cfg)
         print(f"  identity: herd N={n_herd}, swaps split {len(splits)}, {id_stats}")
     else:
-        # (B) 기존: 2단계 tracklet 정합
+        # (B) legacy: two-stage tracklet linking
         stitched, feats, links = stitch_tracklets(clean, feats, fps, cfg, persp)
     final, mapping = relabel_and_interpolate(stitched.drop(columns=["rtid"]), fps, cfg)
     act = compute_activity(final, fps, persp, cfg)
@@ -88,7 +88,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
     act.round(4).to_csv(out_dir / "tracks_activity.csv", index=False)
     summ.to_csv(out_dir / "summary.csv", index=False)
 
-    # 배경 이미지 (대시보드 궤적용)
+    # background image (for dashboard trajectories)
     cap = cv2.VideoCapture(str(video_path))
     cap.set(cv2.CAP_PROP_POS_FRAMES, min(48, meta["n_frames"] - 1))
     ok, bg = cap.read()
@@ -124,7 +124,7 @@ def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path 
 
 
 def load_or_extract_embeddings(video_path, raw, out_dir, cfg: PipelineConfig, reuse: bool):
-    """ReID 임베딩 (reid_every 프레임마다) — outputs/<name>/cache_reid.npz 에 캐시."""
+    """ReID embeddings (every reid_every frames) - cached in outputs/<name>/cache_reid.npz."""
     from .reid import extract_embeddings, load_reid
 
     cache = out_dir / "cache_reid.npz"

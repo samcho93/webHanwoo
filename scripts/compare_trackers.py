@@ -1,11 +1,11 @@
-"""추적 알고리즘 비교 실험 — 어떤 조합이 이 축사에서 ID 를 가장 안정적으로 유지하는가?
+"""Tracker comparison experiment - which combination keeps IDs most stable in this barn?
 
-정답 ID 라벨(GT)이 없으므로 다음 '대리 지표'를 사용한다.
-  herd   : 프레임별 검출 수의 95% 분위 ≈ 실제 두수 추정
-  ids    : 최종 ID 개수 (이상적으로 herd 와 같아야 함)
-  ratio  : ids / herd  (1.0 에 가까울수록 좋음, 클수록 ID 가 쪼개짐)
-  mean_len_s : ID 당 평균 추적 시간
-  full   : 영상의 90% 이상 지속된 ID 수 (클수록 좋음)
+There are no ground-truth ID labels, so the following proxy metrics are used.
+  herd   : 95th percentile of detections per frame ≈ estimated true head count
+  ids    : final number of IDs (ideally equal to herd)
+  ratio  : ids / herd  (closer to 1.0 is better; larger means IDs are fragmented)
+  mean_len_s : mean tracked time per ID
+  full   : number of IDs lasting >= 90% of the video (larger is better)
 
 usage: python scripts/compare_trackers.py E:/Video/cow/cow09.mp4 E:/Video/cow/cow04.mp4
 """
@@ -21,10 +21,10 @@ from hanwoo.detect_track import run_detect_track  # noqa: E402
 from hanwoo.stitching import clean_short, fit_perspective, relabel_and_interpolate, stitch_tracklets  # noqa: E402
 
 VARIANTS = [
-    ("ByteTrack (기본)", "bytetrack.yaml", False),
-    ("BoT-SORT (기본)", "botsort.yaml", False),
-    ("BoT-SORT 축사튜닝", str(ROOT / "configs/hanwoo_botsort.yaml"), False),
-    ("BoT-SORT 축사튜닝 + 오프라인 정합", str(ROOT / "configs/hanwoo_botsort.yaml"), True),
+    ("ByteTrack (default)", "bytetrack.yaml", False),
+    ("BoT-SORT (default)", "botsort.yaml", False),
+    ("BoT-SORT barn-tuned", str(ROOT / "configs/hanwoo_botsort.yaml"), False),
+    ("BoT-SORT barn-tuned + offline linking", str(ROOT / "configs/hanwoo_botsort.yaml"), True),
 ]
 
 

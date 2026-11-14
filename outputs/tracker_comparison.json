@@ -1,7 +1,7 @@
 [
   {
     "video": "cow09",
-    "variant": "ByteTrack (기본)",
+    "variant": "ByteTrack (default)",
     "herd": 14,
     "ids": 28,
     "ratio": 2.0,
@@ -10,7 +10,7 @@
   },
   {
     "video": "cow09",
-    "variant": "BoT-SORT (기본)",
+    "variant": "BoT-SORT (default)",
     "herd": 14,
     "ids": 28,
     "ratio": 2.0,
@@ -19,7 +19,7 @@
   },
   {
     "video": "cow09",
-    "variant": "BoT-SORT 축사튜닝",
+    "variant": "BoT-SORT barn-tuned",
     "herd": 14,
     "ids": 25,
     "ratio": 1.79,
@@ -28,7 +28,7 @@
   },
   {
     "video": "cow09",
-    "variant": "BoT-SORT 축사튜닝 + 오프라인 정합",
+    "variant": "BoT-SORT barn-tuned + offline linking",
     "herd": 14,
     "ids": 15,
     "ratio": 1.07,
@@ -37,7 +37,7 @@
   },
   {
     "video": "cow04",
-    "variant": "ByteTrack (기본)",
+    "variant": "ByteTrack (default)",
     "herd": 14,
     "ids": 45,
     "ratio": 3.21,
@@ -46,7 +46,7 @@
   },
   {
     "video": "cow04",
-    "variant": "BoT-SORT (기본)",
+    "variant": "BoT-SORT (default)",
     "herd": 14,
     "ids": 46,
     "ratio": 3.29,
@@ -55,7 +55,7 @@
   },
   {
     "video": "cow04",
-    "variant": "BoT-SORT 축사튜닝",
+    "variant": "BoT-SORT barn-tuned",
     "herd": 14,
     "ids": 33,
     "ratio": 2.36,
@@ -64,7 +64,7 @@
   },
   {
     "video": "cow04",
-    "variant": "BoT-SORT 축사튜닝 + 오프라인 정합",
+    "variant": "BoT-SORT barn-tuned + offline linking",
     "herd": 14,
     "ids": 15,
     "ratio": 1.07,

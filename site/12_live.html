@@ -1,44 +1,44 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>실시간 추적 프로그램 (RTSP 카메라) · 한우 활동량 AI 강좌</title>
+<title>Real-Time Tracking App (RTSP Cameras) · Hanwoo Activity AI Course</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <link rel="stylesheet" href="assets/style.css"></head><body>
-<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
-<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
-<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li><li class='on'><a href='12_live.html'><span>13</span>실시간 추적 프로그램 (RTSP 카메라)</a></li><li class=''><a href='13_paper.html'><span>14</span>논문: 고정 개체군 제약과 자기지도 ReID</a></li></ol>
-<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
-<main class="content"><div class="crumb">Lesson 13 / 14</div><h1>실시간 추적 프로그램 (RTSP 카메라)</h1>
-<p class="lead">지금까지의 파이프라인은 영상을 끝까지 본 뒤 ID 를 정하는 <b>오프라인</b> 방식입니다. 축사 카메라(RTSP)를 연결해 <b>실시간</b>으로 추적하려면 “미래 프레임” 없이 마릿수를 세고 ID 를 유지해야 합니다. 이 레슨에서는 처음 일정 시간 동안 마릿수를 세고 소마다 외형을 등록한 뒤, 그 N 마리 안에서만 ID 를 배정하는 온라인 알고리즘과, 파라미터를 화면에서 바로 조정하는 프로그램을 만듭니다.</p>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="Menu">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 Hanwoo Activity AI</a>
+<div class="sub">YOLO · Tracking · Activity · Dashboard</div><ol><li class=''><a href='index.html'><span>00</span>Course Introduction and Overview</a></li><li class=''><a href='01_env.html'><span>01</span>Setting Up the Environment</a></li><li class=''><a href='02_data.html'><span>02</span>Understanding the Data (Barn Videos)</a></li><li class=''><a href='03_detect.html'><span>03</span>Object Detection: Trying Pretrained YOLO</a></li><li class=''><a href='04_dataset.html'><span>04</span>Building Training Data Automatically (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>Fine-tuning and Evaluating YOLO</a></li><li class=''><a href='06_tracking.html'><span>06</span>Multi-Object Tracking (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID Consistency: Offline Tracklet Stitching</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID Training and Fixed-Herd ID Keeping</a></li><li class=''><a href='08_activity.html'><span>09</span>Activity Measurement Algorithm</a></li><li class=''><a href='09_visualize.html'><span>10</span>Result Video and Dashboard</a></li><li class=''><a href='10_results.html'><span>11</span>Running All Videos and Analysing Results</a></li><li class=''><a href='11_apply.html'><span>12</span>Applying to New Videos and Extending</a></li><li class='on'><a href='12_live.html'><span>13</span>Real-Time Tracking App (RTSP Cameras)</a></li><li class=''><a href='13_paper.html'><span>14</span>Paper: Fixed-Herd Constraint and Self-Supervised ReID</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ Result dashboards</a></div></nav>
+<main class="content"><div class="crumb">Lesson 13 / 14</div><h1>Real-Time Tracking App (RTSP Cameras)</h1>
+<p class="lead">The pipeline so far is <b>offline</b>: it watches the whole video before deciding on IDs. To track <b>in real time</b> from a barn camera (RTSP), we have to count the herd and maintain IDs without any “future frames”. In this lesson we build an online algorithm that counts the animals and enrolls each one's appearance during an initial period, then assigns IDs only within those N animals, together with a program that lets you tune the parameters directly on screen.</p>
 
-<pre><code class="language-plaintext">입력(파일 / RTSP / 웹캠) ─ 읽기 스레드: 최신 프레임만 유지, 끊기면 재연결
-   → YOLO 검출 + BoT-SORT 추적 (프레임 간 연결)
-   → ReID 임베딩 (4프레임마다, 가림 적은 박스만)
-   → [등록 단계, 처음 60초]  마릿수 N 카운트 + 소마다 외형 갤러리 등록
-   → [추적 단계]           N 개 개체 슬롯에 트랙 배정 · 뒤바뀜 교정 · 활동량 누적
-   → 화면 표시 / CSV / 결과 영상</code></pre>
+<pre><code class="language-plaintext">Input (file / RTSP / webcam) ─ reader thread: keeps only the latest frame, reconnects on drop
+   → YOLO detection + BoT-SORT tracking (frame-to-frame linking)
+   → ReID embedding (every 4 frames, only for lightly occluded boxes)
+   → [Enrollment phase, first 60 s]  count herd size N + enroll an appearance gallery per animal
+   → [Tracking phase]                assign tracks to N animal slots · fix ID switches · accumulate activity
+   → display / CSV / result video</code></pre>
 
-<h2>1. 오프라인과 무엇이 다른가</h2>
+<h2>1. How it differs from offline</h2>
 <div class="tbl"><table>
-<tr><th>단계</th><th>오프라인 (레슨 07b)</th><th>실시간 (이 레슨)</th></tr>
-<tr><td>마릿수 N</td><td>영상 전체에서 동시 검출 수</td><td>처음 <code>enroll_s</code> 초 동안 동시 검출 수 + 외형 군집, 이후 확실한 새 소가 보이면 증가</td></tr>
-<tr><td>ID 배정</td><td>긴 tracklet 부터 전체를 보고 탐욕 배정 + 반복 개선</td><td>새 트랙이 <code>confirm_s</code> 초 외형을 모으면 “안 보이는” 슬롯과 헝가리안 매칭</td></tr>
-<tr><td>뒤바뀜(swap)</td><td>겹침 앞뒤 ±4초 외형 비교 후 tracklet 분리</td><td>겹쳤다 떨어진 뒤 <code>swap_post_s</code> 초 외형을 모아 두 ID 교환 여부 판단</td></tr>
-<tr><td>활동량</td><td>앞뒤 프레임으로 중앙차분</td><td>과거 데이터만 사용 (최근 0.5초 위치 vs 1초 전 위치)</td></tr>
-<tr><td>지연</td><td>없음 (처리 후 재생)</td><td>새로 나타난 소의 ID 는 약 1초 뒤 표시</td></tr>
+<tr><th>Step</th><th>Offline (Lesson 07b)</th><th>Real time (this lesson)</th></tr>
+<tr><td>Herd size N</td><td>Simultaneous detection count over the whole video</td><td>Simultaneous detection count + appearance clusters during the first <code>enroll_s</code> seconds; increased later when a clearly new animal appears</td></tr>
+<tr><td>ID assignment</td><td>Greedy assignment over the whole video, longest tracklets first, + iterative refinement</td><td>Once a new track has collected <code>confirm_s</code> seconds of appearance, Hungarian matching against “not visible” slots</td></tr>
+<tr><td>ID switch (swap)</td><td>Compare appearance ±4 s around an overlap, then split the tracklet</td><td>After two animals overlap and separate, collect <code>swap_post_s</code> seconds of appearance and decide whether to swap the two IDs</td></tr>
+<tr><td>Activity</td><td>Central difference using frames before and after</td><td>Uses past data only (position over the last 0.5 s vs. position 1 s earlier)</td></tr>
+<tr><td>Latency</td><td>None (play back after processing)</td><td>The ID of a newly appearing animal is shown after about 1 s</td></tr>
 </table></div>
 
-<h2>2. 등록 단계: 마릿수 세기</h2>
-<p>한 프레임의 검출 수는 오검출·가림 때문에 흔들립니다. 그래서 두 가지 방법으로 세고 비교합니다.</p>
+<h2>2. Enrollment phase: counting the herd</h2>
+<p>The number of detections in a single frame fluctuates because of false positives and occlusion. So we count in two ways and compare.</p>
 <ul>
-<li><b>안정적인 동시 검출 수 (n_sim)</b>: 신뢰도 ≥ <code>count_conf</code> 인 검출이 k 개 이상인 상태가 <code>count_stable_s</code> 초 이상 이어진 최대 k. 순간적인 중복 박스는 걸러지지만, 다른 소 뒤에 계속 가려진 소는 세지 못합니다.</li>
-<li><b>외형 군집 수 (n_clu)</b>: 등록 구간의 추적기 트랙마다 ReID 평균 임베딩을 구하고, 유사도가 높은 것부터 묶습니다. 단 <b>같은 시각에 함께 보인 트랙은 절대 묶지 않습니다</b>(cannot-link). 가려졌다 나타난 소도 셀 수 있지만, 자세에 따라 외형이 달라 보이면 한 마리를 둘로 셀 수 있습니다.</li>
+<li><b>Stable simultaneous detection count (n_sim)</b>: the largest k such that at least k detections with confidence ≥ <code>count_conf</code> persist for at least <code>count_stable_s</code> seconds. Momentary duplicate boxes are filtered out, but an animal that stays hidden behind another cannot be counted.</li>
+<li><b>Appearance cluster count (n_clu)</b>: compute the mean ReID embedding of each tracker track in the enrollment window and group them starting from the most similar pairs. However, <b>tracks seen at the same time are never grouped together</b> (cannot-link). This can count animals that were hidden and reappeared, but if an animal looks different depending on its posture, one animal may be counted as two.</li>
 </ul>
-<p>기본값 <code>count_mode=max</code> 는 둘 중 큰 값을 씁니다. 군집은 그대로 각 소의 <b>초기 외형 갤러리</b>가 됩니다. 마릿수를 정확히 알고 있다면 <code>마릿수 N</code> 에 직접 입력하는 것이 가장 확실합니다.</p>
+<p>The default <code>count_mode=max</code> uses the larger of the two. The clusters then become each animal's <b>initial appearance gallery</b>. If you know the exact herd size, entering it directly in <code>Herd size N (0=auto)</code> is the most reliable option.</p>
 <div class="file">📄 hanwoo/online.py (L221–283)</div><pre><code class="language-python">    def _finish_enroll(self, t, seen):
         cfg = self.cfg
-        # 원근 모델 h(y) = a·y + b
+        # perspective model h(y) = a·y + b
         if len(self.boxes_enroll) &gt;= 20:
             P = np.array(self.boxes_enroll)
             bins = np.quantile(P[:, 0], np.linspace(0, 1, 11))
@@ -50,7 +50,7 @@
             if len(xs) &gt;= 2:
                 a, b = np.polyfit(xs, ys, 1)
                 self.persp = (float(a), float(b)) if a &gt; 0 else (0.0, float(np.median(ys)))
-        # (a) 안정적인 동시 검출 수
+        # (a) stable simultaneous detection count
         C = np.array(self.counts)
         n_sim = 0
         for k in range(int(C[:, 1].max()) if len(C) else 0, 0, -1):
@@ -65,7 +65,7 @@
             if best &gt;= cfg.count_stable_s:
                 n_sim = k
                 break
-        # (b) 외형 군집 (cannot-link: 같은 시각 함께 보인 트랙)
+        # (b) appearance clusters (cannot-link: tracks seen at the same time)
         clusters = self._cluster_tracks()
         n_clu = sum(1 for c in clusters if c[&quot;dur&quot;] &gt;= cfg.count_min_track_s)
         self.n_sim, self.n_clu = n_sim, n_clu
@@ -79,7 +79,7 @@
             N = n_sim
         N = max(N, 1)
         self.N = N
-        # 슬롯 초기화: 오래 보인 군집부터 N 개
+        # initialise slots: N clusters, longest-seen first
         clusters.sort(key=lambda c: -c[&quot;dur&quot;])
         self.slots, self.acts = [], []
         for i in range(N):
@@ -96,24 +96,24 @@
             self.slots.append(s)
             self.acts.append(SlotActivity())
         self.phase = &quot;track&quot;
-        self.event(t, f&quot;등록 완료: 동시검출 {n_sim}마리, 외형군집 {n_clu}개 → N={N}&quot;
-                      f&quot;{&#x27; (사용자 지정)&#x27; if cfg.herd_size &gt; 0 else &#x27;&#x27;}&quot;)
+        self.event(t, f&quot;Enrollment done: simultaneous {n_sim}, appearance clusters {n_clu} → N={N}&quot;
+                      f&quot;{&#x27; (user-specified)&#x27; if cfg.herd_size &gt; 0 else &#x27;&#x27;}&quot;)
 </code></pre>
 
-<h2>3. 추적 단계: N 개 슬롯 안에서 ID 유지</h2>
+<h2>3. Tracking phase: keeping IDs within N slots</h2>
 <ol>
-<li><b>사라짐</b>: 슬롯에 묶인 트랙이 <code>release_s</code> 초 안 보이면 슬롯을 비우고 마지막 위치·시각을 기억합니다.</li>
-<li><b>복귀</b>: 같은 추적기 트랙이 다시 나타나고 이전 슬롯이 비어 있으면 바로 되돌립니다.</li>
-<li><b>새 트랙 배정</b>: 비어 있는 슬롯들과 비용 행렬을 만들고 헝가리안 매칭.<br>
-비용 = <code>w·(1 − 외형 유사도) + (1 − w)·(이동거리 / 허용거리)</code>, 허용거리 = <code>(기본 반경 + 초당 반경 × 사라진 시간) × 몸길이</code>. 허용거리 × 게이트를 넘으면 배정 불가.</li>
-<li><b>뒤바뀜 교정</b>: 두 트랙이 겹쳤다(IoU ≥ 0.2) 떨어지면, 떨어진 뒤의 외형으로 “그대로” 와 “서로 바꿈” 의 유사도 합을 비교해 더 나은 쪽을 택합니다.</li>
-<li><b>외형 교정</b>: 묶인 트랙의 최근 3초 외형이 자기 슬롯보다 안 보이는 다른 슬롯과 훨씬 비슷하면(<code>drift_margin</code>) 그 슬롯으로 옮깁니다.</li>
-<li><b>N 증가</b>: N 개 슬롯이 모두 보이는데, 다른 박스와 겹치지 않는 확실한 트랙이 <code>grow_s</code> 초 이상 배정되지 못하면 새 소로 보고 N 을 1 늘립니다.</li>
+<li><b>Disappearance</b>: if the track bound to a slot is not seen for <code>release_s</code> seconds, the slot is freed and its last position and time are remembered.</li>
+<li><b>Return</b>: if the same tracker track reappears and its previous slot is still free, it is restored immediately.</li>
+<li><b>New track assignment</b>: build a cost matrix against the free slots and run Hungarian matching.<br>
+cost = <code>w·(1 − appearance similarity) + (1 − w)·(distance moved / allowed distance)</code>, allowed distance = <code>(base radius + radius per second × time missing) × body length</code>. Beyond allowed distance × gate, assignment is not possible.</li>
+<li><b>ID switch correction</b>: when two tracks overlap (IoU ≥ 0.2) and then separate, the appearance after separation is used to compare the summed similarity of “keep as is” vs. “swap”, and the better option is chosen.</li>
+<li><b>Appearance correction</b>: if the last 3 s of a bound track's appearance is much more similar to another, not-visible slot than to its own slot (<code>drift_margin</code>), it is moved to that slot.</li>
+<li><b>Growing N</b>: if all N slots are visible but a clear track that does not overlap any other box remains unassigned for at least <code>grow_s</code> seconds, it is treated as a new animal and N is increased by 1.</li>
 </ol>
-<p>외형 갤러리는 등록 때 외형(고정) + 최근 외형 60개로 구성하고, 다른 소와 겹친 직후의 crop 은 넣지 않아 갤러리가 오염되지 않게 합니다.</p>
+<p>The appearance gallery consists of the enrollment appearance (fixed) + the 60 most recent appearances. Crops taken right after an overlap with another animal are not added, so the gallery is not contaminated.</p>
 <div class="file">📄 hanwoo/online.py (L367–441)</div><pre><code class="language-python">    def _track_step(self, t, dets, seen, dt):
         cfg = self.cfg
-        # (1) 안 보이는 트랙 → 슬롯 해제 (슬롯은 마지막 위치 기억)
+        # (1) unseen tracks → release slot (slot remembers last position)
         for s in self.slots:
             if s.track is not None:
                 tr = self.tracks.get(s.track)
@@ -121,7 +121,7 @@
                     if tr is not None:
                         tr.slot = None
                     s.track = None
-        # (2) 같은 트랙이 돌아왔고 이전 슬롯이 비어 있으면 그대로 복귀
+        # (2) same track returned and its previous slot is free → restore it
         for k in seen:
             tr = self.tracks[k]
             if tr.slot is None and tr.last_slot is not None and tr.last_slot &lt; len(self.slots) \
@@ -130,11 +130,11 @@
                 if s.pos is None or np.hypot(tr.center[0] - s.pos[0], tr.center[1] - s.pos[1]) \
                         &lt;= cfg.id_gate * self._allowed_px(s, t, tr.center[1]):
                     self._bind(tr, tr.last_slot, t)
-        # (3) 겹쳤다 떨어진 트랙 쌍 → 스왑 검사
+        # (3) track pairs that overlapped then separated → swap check
         self._check_swaps(t, seen)
-        # (4) drift: 묶인 트랙의 최근 외형이 &#x27;사라진&#x27; 다른 슬롯과 훨씬 비슷하면 이동
+        # (4) drift: if a bound track&#x27;s recent appearance is much closer to another &#x27;missing&#x27; slot, move it
         self._check_drift(t, seen)
-        # (5) 대기 트랙 → 빈 슬롯 배정 (헝가리안)
+        # (5) waiting tracks → assign to free slots (Hungarian)
         ready = []
         for k in seen:
             tr = self.tracks[k]
@@ -156,8 +156,8 @@
                 if Cm[a, b] &lt; INF and Cm[a, b] &lt;= cfg.id_max_cost:
                     tr, si = ready[a][0], free[b]
                     gap = t - self.slots[si].t_last
-                    self._bind(tr, si, t, f&quot;재등장 ({gap:.1f}s 만에, 비용 {Cm[a, b]:.2f})&quot; if gap &gt; 3 else &quot;&quot;)
-        # (6) 아무 슬롯에도 못 들어간 확실한 트랙 → N 자동 증가
+                    self._bind(tr, si, t, f&quot;re-appeared (after {gap:.1f}s, cost {Cm[a, b]:.2f})&quot; if gap &gt; 3 else &quot;&quot;)
+        # (6) confident tracks that fit no slot → auto-increase N
         for tr, _e in ready:
             if tr.slot is None and tr.t_unassigned is None:
                 tr.t_unassigned = t
@@ -171,8 +171,8 @@
                 self.slots.append(s)
                 self.acts.append(SlotActivity())
                 self.N = len(self.slots)
-                self._bind(tr, len(self.slots) - 1, t, f&quot;새 개체 → 마릿수 N={self.N} 로 증가&quot;)
-        # (7) 묶인 슬롯 갱신: 위치·갤러리·활동량
+                self._bind(tr, len(self.slots) - 1, t, f&quot;new animal → herd size increased to N={self.N}&quot;)
+        # (7) update bound slots: position, gallery, activity
         motion = {d[0]: (d[3], d[4]) for d in dets}
         for si, s in enumerate(self.slots):
             if s.track is None or s.track not in seen:
@@ -187,8 +187,8 @@
             self.acts[si].update(t, cx, cy, mot, self.persp, cfg)
 </code></pre>
 
-<h2>4. 실시간 입력: 지연이 쌓이지 않게</h2>
-<p>처리 속도가 카메라 fps 보다 조금이라도 느리면, 프레임을 순서대로 처리할 때 지연이 계속 늘어납니다. 그래서 스트림은 별도 스레드가 계속 읽으면서 <b>가장 최근 프레임 하나만</b> 남기고, 처리 스레드는 그 프레임을 가져갑니다(버린 프레임 수는 화면에 표시). 연결이 끊기면 1→2→4→5초 간격으로 다시 연결합니다. RTSP 는 기본으로 TCP 로 받아 패킷 손실로 화면이 깨지는 것을 줄입니다. 활동량은 프레임 번호가 아니라 <b>실제 시각</b>으로 계산하므로 프레임을 건너뛰어도 속도·거리가 맞습니다.</p>
+<h2>4. Real-time input: keeping latency from building up</h2>
+<p>If processing is even slightly slower than the camera fps, processing frames in order makes the latency grow continuously. So a separate thread keeps reading the stream and retains <b>only the most recent frame</b>, and the processing thread takes that frame (the number of dropped frames is shown on screen). If the connection drops, it reconnects at 1→2→4→5-second intervals. RTSP is received over TCP by default to reduce picture corruption from packet loss. Activity is computed from <b>wall-clock time</b> rather than frame numbers, so speed and distance stay correct even when frames are skipped.</p>
 <div class="file">📄 hanwoo/live.py (L117–203)</div><pre><code class="language-python">        return cls(**{k: v for k, v in d.items() if k in names})
 
 
@@ -197,10 +197,10 @@ def is_stream(src: str) -&gt; bool:
     return s.isdigit() or s.startswith((&quot;rtsp://&quot;, &quot;rtsps://&quot;, &quot;http://&quot;, &quot;https://&quot;, &quot;udp://&quot;, &quot;tcp://&quot;, &quot;rtmp://&quot;))
 
 
-# --------------------------------------------------------------------------- 입력
+# --------------------------------------------------------------------------- Input
 class FrameSource:
-    &quot;&quot;&quot;파일: 순서대로 모든 프레임 (realtime 이면 원래 속도로).
-    스트림: 별도 스레드가 계속 읽고 &#x27;가장 최근 프레임&#x27; 만 넘김 (처리가 느려도 지연이 쌓이지 않음), 끊기면 재연결.&quot;&quot;&quot;
+    &quot;&quot;&quot;File: every frame in order (at original speed if realtime).
+    Stream: a separate thread reads continuously and hands over only the &#x27;latest frame&#x27; (no lag build-up when processing is slow); reconnects on disconnect.&quot;&quot;&quot;
 
     def __init__(self, cfg: LiveConfig, log=print):
         self.cfg, self.log = cfg, log
@@ -229,7 +229,7 @@ class FrameSource:
         if not self.cap.isOpened():
             self.connected = False
             if not self.stream:
-                raise IOError(f&quot;영상을 열 수 없습니다: {self.src}&quot;)
+                raise IOError(f&quot;Cannot open video: {self.src}&quot;)
             return False
         f = self.cap.get(cv2.CAP_PROP_FPS)
         self.fps = f if f and 1 &lt;= f &lt;= 120 else 24.0
@@ -241,16 +241,16 @@ class FrameSource:
         backoff = 1.0
         while not self._stop.is_set():
             if not self.connected:
-                self.log(f&quot;스트림 연결 시도: {self.src}&quot;)
+                self.log(f&quot;Connecting to stream: {self.src}&quot;)
                 if not self._open():
                     time.sleep(backoff)
                     backoff = min(backoff * 2, 5)
                     continue
-                self.log(&quot;스트림 연결됨&quot;)
+                self.log(&quot;Stream connected&quot;)
                 backoff = 1.0
             ok, fr = self.cap.read()
             if not ok:
-                self.log(&quot;스트림 끊김 → 재연결&quot;)
+                self.log(&quot;Stream disconnected → reconnecting&quot;)
                 self.connected = False
                 self.cap.release()
                 continue
@@ -262,7 +262,7 @@ class FrameSource:
                 self._cv.notify()
 
     def read(self, timeout=5.0):
-        &quot;&quot;&quot;반환 (frame_no, t_seconds, frame) 또는 None(끝).&quot;&quot;&quot;
+        &quot;&quot;&quot;Returns (frame_no, t_seconds, frame) or None (end).&quot;&quot;&quot;
         if self.stream:
             with self._cv:
                 if self._latest is None:
@@ -277,63 +277,63 @@ class FrameSource:
             if not ok:
                 return None</code></pre>
 
-<h2>5. 프로그램 사용법</h2>
-<pre><code class="language-bash">live.bat                                   # 또는 run.bat 메뉴 7
+<h2>5. Using the program</h2>
+<pre><code class="language-bash">live.bat                                   # or run.bat menu 7
 live.bat rtsp://admin:password@192.168.0.64:554/Streaming/Channels/101
-python live_app.py --headless --source rtsp://... --save-video   # 화면 없는 서버에서</code></pre>
-<figure><img src="assets/img/live_gui.png"><figcaption>실시간 추적 프로그램. 왼쪽: ID·궤적·활동량 패널, 오른쪽: 마릿수·개체별 상태·이벤트(재등장, 교정, N 변경)</figcaption></figure>
+python live_app.py --headless --source rtsp://... --save-video   # on a server without a display</code></pre>
+<figure><img src="assets/img/live_gui.png"><figcaption>The real-time tracking program. Left: IDs, tracks and activity panel; right: herd count, per-animal state and events (reappearance, correction, N change)</figcaption></figure>
 <ul>
-<li><b>입력 탭</b>: 영상 파일 / RTSP 주소 / 웹캠, 원래 속도 재생, CSV·영상 저장, [마릿수 다시 세기]</li>
-<li><b>파라미터 탭</b>: 항목에 마우스를 올리면 설명이 나옵니다. 검출·ID 배정·활동량은 <b>즉시 반영</b>, 추적기(BoT-SORT) 설정은 추적기만 재시작(개체 ID 는 슬롯이 유지), 카운트 설정은 [마릿수 다시 세기] 로 적용. 튜닝한 값은 [프리셋 저장] 으로 JSON 에 저장하고, <code>configs/live_default.json</code> 으로 저장하면 시작할 때 자동으로 불러옵니다.</li>
-<li><b>상태 탭</b>: 마릿수 N, 보이는/사라진 소, 처리 fps, 개체별 상태·속도·이동거리·활동지수</li>
-<li><b>결과</b>: <code>outputs/live/&lt;이름&gt;_&lt;시각&gt;/</code> 에 <code>tracks_live.csv</code>(프레임별), <code>summary_live.csv</code>(개체별 요약), <code>events.log</code>, <code>config.json</code>(사용한 파라미터)</li>
+<li><b>Input tab</b>: Video file / RTSP camera / Webcam, playback at original speed, save CSV and video, [↻ Recount herd (restart enrollment)]</li>
+<li><b>Parameters tab</b>: hover over an item to see its description. Detection, ID assignment and activity settings <b>take effect immediately</b>; tracker (BoT-SORT) settings restart only the tracker (animal IDs are kept in their slots); herd count settings are applied with [↻ Recount herd (restart enrollment)]. Save tuned values to JSON with [Save preset]; if you save them as <code>configs/live_default.json</code>, they are loaded automatically at startup.</li>
+<li><b>Status tab</b>: herd size N, visible/missing animals, processing fps, per-animal state, speed, distance and activity index</li>
+<li><b>Output</b>: <code>outputs/live/&lt;name&gt;_&lt;time&gt;/</code> contains <code>tracks_live.csv</code> (per frame), <code>summary_live.csv</code> (per-animal summary), <code>events.log</code>, <code>config.json</code> (parameters used)</li>
 </ul>
 
-<h2>6. 흐린 배경의 오검출 박스 처리</h2>
-<p>첫 실행 결과의 콘택트 시트에서 ID 9·13·15 행에 회색으로 흐린 crop 이 섞여 있었습니다. 원인을 찾아보니 왼쪽 뒤 울타리 너머의 <b>고정된 물체(구유로 보임)</b>를 소로 잘못 본 높이 21px 짜리 박스가 영상 22분 중 약 10분 동안 <b>정확히 같은 좌표</b>에 검출되고 있었습니다. 이 박스가 “사라진 소” 의 ID 를 번갈아 빼앗아 ID 가 섞인 것입니다. 바로 옆의 다른 작은 박스들은 왼쪽 뒤 칸의 진짜 소(머리만 보이는 경우 포함)였기 때문에, 그 영역 전체를 지우면 안 됩니다.</p>
-<figure><img src="assets/img/static_ghost.jpg"><figcaption>빨간 박스: 22분 내내 같은 자리에 검출된 배경 물체 (프레임 100 · 9330 · 14231 · 31000)</figcaption></figure>
-<p>그래서 두 가지 장치를 넣었습니다 (<code>hanwoo/zones.py</code>).</p>
+<h2>6. Handling false-positive boxes on a blurry background</h2>
+<p>In the contact sheet from the first run, the rows for IDs 9, 13 and 15 contained blurry gray crops. On investigation, a 21-px-tall box that mistook a <b>fixed object (apparently a feed trough)</b> beyond the back-left fence for an animal was being detected at <b>exactly the same coordinates</b> for about 10 of the video's 22 minutes. This box kept stealing the IDs of “missing” animals in turn, mixing up the IDs. The other small boxes right next to it were real animals in the back-left pen (including some where only the head is visible), so the whole area must not be erased.</p>
+<figure><img src="assets/img/static_ghost.jpg"><figcaption>Red box: a background object detected at the same spot throughout all 22 minutes (frames 100 · 9330 · 14231 · 31000)</figcaption></figure>
+<p>So we added two mechanisms (<code>hanwoo/zones.py</code>).</p>
 <ul>
-<li><b>검출 영역(ROI)</b>: 화면 비율 좌표의 다각형. <b>제외 영역</b> 안에 박스의 발 위치(하단 중앙)가 있으면 버리고, <b>포함 영역</b>을 그리면 그 안의 박스만 씁니다. 영상별로 <code>configs/zones/&lt;영상이름&gt;.json</code>(카메라는 <code>camera_&lt;IP&gt;.json</code>)에 저장되고, 실시간 프로그램과 오프라인 파이프라인(<code>run_activity.py</code>)이 모두 자동으로 읽습니다. 프로그램의 [영역 편집…] 에서 영상 위를 클릭해 그립니다.</li>
-<li><b>고정 오검출 자동 탐지</b>: 박스 좌표를 6px 격자로 묶어 같은 자리에 머문 시간을 누적하고, <code>120초 이상</code> 고정되었으면서 <code>크기비(박스 높이 / 그 위치의 기대 체고) &lt; 0.5</code> 인 위치를 후보로 냅니다. 소는 오래 누워 있어도 결국 자세를 바꾸고, 누운 소는 크기비가 대개 0.5 이상이라 “작다” 는 조건으로 보호합니다. 후보는 이벤트로 알리고 [고정 오검출 제외] 를 누르면 발 위치 주변의 작은 사각형이 제외 영역에 추가됩니다 (<code>static_auto</code> 를 켜면 자동 추가).</li>
-<li><b>크기 필터</b> (<code>min_size_ratio</code>, 기본 끔): 먼 배경의 작은 박스를 크기만으로 거릅니다. cow03 에서 0.5 로 하면 배경 박스는 93% 걸러지지만 가려진 진짜 소 박스도 2.9% 사라져 보조 수단으로만 씁니다.</li>
+<li><b>Detection zone (ROI)</b>: polygons in normalized screen coordinates. A box is discarded if its foot position (bottom center) lies inside an <b>exclude zone</b>; if you draw an <b>include zone</b>, only boxes inside it are used. Zones are saved per video in <code>configs/zones/&lt;video name&gt;.json</code> (for cameras, <code>camera_&lt;IP&gt;.json</code>), and both the real-time program and the offline pipeline (<code>run_activity.py</code>) read them automatically. Draw them by clicking on the video in the program's [Edit zones…  (draw polygons)].</li>
+<li><b>Automatic static false positive detection</b>: box coordinates are binned on a 6-px grid to accumulate how long a box stays in the same place, and positions that are fixed for <code>at least 120 s</code> with <code>size ratio (box height / expected body height at that position) &lt; 0.5</code> are reported as candidates. Animals eventually change posture even when lying for a long time, and a lying animal's size ratio is usually 0.5 or more, so the “small” condition protects them. Candidates are announced as events, and pressing [Exclude static false positives (candidates N)] adds a small rectangle around the foot position to the exclude zones (turn on <code>static_auto</code> to add them automatically).</li>
+<li><b>Size filter</b> (<code>min_size_ratio</code>, off by default): filters small boxes in the distant background by size alone. On cow03, a value of 0.5 removes 93% of the background boxes but also 2.9% of occluded real-animal boxes, so it is used only as a secondary measure.</li>
 </ul>
-<figure><img src="assets/img/zone_dialog.png"><figcaption>검출 영역 편집 창: 빨강 = 제외 영역, 노란 박스 = 현재 검출과 발 위치</figcaption></figure>
-<pre><code class="language-bash">python scripts/find_static_boxes.py outputs/cow03            # 오프라인 결과에서 후보 찾기
-python scripts/find_static_boxes.py outputs/cow03 --apply    # configs/zones/cow03.json 에 추가
-python run_activity.py E:/Video/cow/cow03.mp4 --reuse        # 영역 적용해 다시 계산</code></pre>
-<p><b>적용 결과 (cow03)</b></p>
+<figure><img src="assets/img/zone_dialog.png"><figcaption>Detection zone editor: red = exclude zone, yellow boxes = current detections and foot positions</figcaption></figure>
+<pre><code class="language-bash">python scripts/find_static_boxes.py outputs/cow03            # find candidates in offline results
+python scripts/find_static_boxes.py outputs/cow03 --apply    # add them to configs/zones/cow03.json
+python run_activity.py E:/Video/cow/cow03.mp4 --reuse        # recompute with zones applied</code></pre>
+<p><b>Results after applying zones (cow03)</b></p>
 <div class="tbl"><table>
-<tr><th>항목</th><th>처리 전</th><th>제외 영역 적용</th></tr>
-<tr><td>오프라인: 제거된 박스</td><td>-</td><td>15,400개 (전체의 4.1%)</td></tr>
-<tr><td>오프라인: 추정 마릿수 / 최종 ID</td><td>15 / 15</td><td>14 / 14 (배경 물체가 한 마리로 세어지던 것이 빠짐)</td></tr>
-<tr><td>실시간: 등록 60초 후 N → 최종 N</td><td>13 → 15</td><td>12 → 15</td></tr>
-<tr><td>실시간: 외형 교정 / 뒤바뀜 교정 / 재등장 배정</td><td>48 / 6 / 114</td><td>31 / 8 / 94</td></tr>
-<tr><td>실시간: 처리 속도</td><td>27.9 fps</td><td>28.2 fps</td></tr>
+<tr><th>Item</th><th>Before</th><th>With exclude zone</th></tr>
+<tr><td>Offline: boxes removed</td><td>-</td><td>15,400 (4.1% of all)</td></tr>
+<tr><td>Offline: estimated herd size / final IDs</td><td>15 / 15</td><td>14 / 14 (the background object that was counted as an animal is gone)</td></tr>
+<tr><td>Real time: N after 60 s enrollment → final N</td><td>13 → 15</td><td>12 → 15</td></tr>
+<tr><td>Real time: appearance corrections / ID switch corrections / reappearance assignments</td><td>48 / 6 / 114</td><td>31 / 8 / 94</td></tr>
+<tr><td>Real time: processing speed</td><td>27.9 fps</td><td>28.2 fps</td></tr>
 </table></div>
-<p>영역 파일을 비워 두고 시작한 시험에서 자동 탐지는 310초 시점에 이 물체 하나만 후보로 냈고(123초 고정, 크기비 0.39), 진짜 소는 후보에 오르지 않았습니다. 아래 7절의 콘택트 시트는 제외 영역을 적용한 결과로, 회색으로 흐리던 배경 물체 칸이 사라졌습니다.</p>
+<p>In a test started with an empty zone file, automatic detection reported only this one object as a candidate at 310 s (fixed for 123 s, size ratio 0.39), and no real animal became a candidate. The contact sheet in Section 7 below is the result with the exclude zone applied; the blurry gray background-object cells are gone.</p>
 
-<h2>7. 결과와 한계</h2>
-<p>cow03(22분, 854×480, 24fps)을 실시간 엔진으로 처리한 결과입니다 (NVIDIA TITAN RTX, 기본 파라미터, 등록 60초).</p>
+<h2>7. Results and limitations</h2>
+<p>Results of processing cow03 (22 min, 854×480, 24 fps) with the real-time engine (NVIDIA TITAN RTX, default parameters, 60 s enrollment).</p>
 <div class="tbl"><table>
-<tr><th>항목</th><th>결과</th></tr>
-<tr><td>등록 60초 후 마릿수</td><td>동시 검출 12 · 외형 군집 13 → N=13</td></tr>
-<tr><td>최종 마릿수</td><td>15 (4분 38초, 6분 44초에 확실한 새 소가 보여 자동 증가) (제외 영역 적용 전 기준. 적용 후 오프라인 추정은 14)</td></tr>
-<tr><td>처리 속도</td><td>평균 27.9 fps (원본 24 fps 보다 빠름 → 실시간 가능)</td></tr>
-<tr><td>ID 교정 이벤트</td><td>외형 교정 48회, 뒤바뀜 교정 6회, 재등장 배정 114회</td></tr>
+<tr><th>Item</th><th>Result</th></tr>
+<tr><td>Herd size after 60 s enrollment</td><td>simultaneous detections 12 · appearance clusters 13 → N=13</td></tr>
+<tr><td>Final herd size</td><td>15 (increased automatically at 4:38 and 6:44 when clearly new animals appeared) (before applying the exclude zone; with it, the offline estimate is 14)</td></tr>
+<tr><td>Processing speed</td><td>27.9 fps on average (faster than the source 24 fps → real time is feasible)</td></tr>
+<tr><td>ID correction events</td><td>48 appearance corrections, 6 ID switch corrections, 114 reappearance assignments</td></tr>
 </table></div>
-<figure><img src="assets/img/idsheet_cow03_live.jpg"><figcaption>실시간 결과 콘택트 시트 (한 행 = 한 ID, 22분을 12구간으로). 제외 영역 적용 후. ID 3·6·8(펜스 쪽)과 10 은 처음부터 끝까지 같은 소로 유지되고, 처리 전 ID 9·13·15 에 섞이던 흐린 배경 물체가 사라짐</figcaption></figure>
-<p><b>한계</b></p>
+<figure><img src="assets/img/idsheet_cow03_live.jpg"><figcaption>Contact sheet of the real-time result (one row = one ID, 22 minutes split into 12 segments), with the exclude zone applied. IDs 3, 6, 8 (fence side) and 10 stay the same animal from start to finish, and the blurry background object that used to mix into IDs 9, 13 and 15 is gone</figcaption></figure>
+<p><b>Limitations</b></p>
 <ul>
-<li>등록 구간에 소들이 뭉쳐 있거나 일부가 계속 가려져 있으면 처음 N 이 적게 잡힙니다. 자동 증가가 보완하지만, 마릿수를 알면 직접 입력하세요.</li>
-<li>실시간 방식은 미래 프레임을 쓸 수 없어 오프라인(레슨 07b)보다 ID 유지가 약합니다. 한우는 털색이 비슷해 오래 뭉쳤다 흩어지면 ID 가 바뀔 수 있습니다. 기록용 데이터는 저장된 영상을 오프라인으로 다시 처리하면 더 정확합니다.</li>
-<li>정답 라벨이 없어 정확도는 콘택트 시트로 눈으로 확인한 수준입니다. 장시간 확실한 ID 가 필요하면 귀표 번호 인식이나 해당 축사 영상으로 ReID 재학습을 더하세요.</li>
-<li>RTSP 경로는 영상 파일을 스트림으로 보내 수신·끊김·재연결을 시험했습니다. 실제 카메라는 기종마다 주소 형식이 다릅니다.</li>
+<li>If the animals are bunched together or some stay hidden during enrollment, the initial N is underestimated. Automatic growth compensates, but if you know the herd size, enter it directly.</li>
+<li>The real-time method cannot use future frames, so it holds IDs less well than offline (Lesson 07b). Hanwoo have similar coat colors, so IDs can change after animals stay bunched for a long time and then disperse. For record-keeping data, reprocessing the saved video offline is more accurate.</li>
+<li>Without ground-truth labels, accuracy has only been checked visually on contact sheets. If you need reliable IDs over long periods, add ear-tag number recognition or retrain ReID on video from that barn.</li>
+<li>The RTSP path was tested by streaming a video file to check reception, dropouts and reconnection. Real cameras use different URL formats depending on the model.</li>
 </ul>
-<div class="tip"><b>튜닝 순서</b>: ① 마릿수를 알면 직접 입력 ② ID 가 자주 바뀌면 <code>외형 가중치</code>↑, <code>사라짐 판정</code>↑ ③ 멀리 떨어진 소끼리 ID 가 넘어가면 <code>이동 게이트</code>↓ ④ 교정이 오락가락하면 <code>뒤바뀜 교정 여유</code>↑ ⑤ 처리 fps 가 카메라보다 낮으면 <code>입력 크기</code>↓, <code>ReID 간격</code>↑</div>
+<div class="tip"><b>Tuning order</b>: ① if you know the herd size, enter it directly ② IDs change often: <code>Appearance weight</code>↑, <code>Missing after</code>↑ ③ IDs jump between animals that are far apart: <code>Motion gate multiplier</code>↓ ④ corrections flip back and forth: <code>Swap correction margin</code>↑ ⑤ processing fps is below the camera's: <code>Input size</code>↓, <code>ReID interval</code>↑</div>
 
-<div class="pager"><a href='11_apply.html'>← 새 영상 적용과 확장</a><a class='nx' href='13_paper.html'>논문: 고정 개체군 제약과 자기지도 ReID →</a></div></main>
+<div class="pager"><a href='11_apply.html'>← Applying to New Videos and Extending</a><a class='nx' href='13_paper.html'>Paper: Fixed-Herd Constraint and Self-Supervised ReID →</a></div></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
-b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='Copy';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/Copy$/,''));b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200)};p.appendChild(b)});</script>
 </body></html>
