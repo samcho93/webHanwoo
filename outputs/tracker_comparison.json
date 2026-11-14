@@ -1,0 +1,74 @@
+[
+  {
+    "video": "cow09",
+    "variant": "ByteTrack (기본)",
+    "herd": 14,
+    "ids": 28,
+    "ratio": 2.0,
+    "mean_len_s": 25.9,
+    "full": 7
+  },
+  {
+    "video": "cow09",
+    "variant": "BoT-SORT (기본)",
+    "herd": 14,
+    "ids": 28,
+    "ratio": 2.0,
+    "mean_len_s": 25.9,
+    "full": 7
+  },
+  {
+    "video": "cow09",
+    "variant": "BoT-SORT 축사튜닝",
+    "herd": 14,
+    "ids": 25,
+    "ratio": 1.79,
+    "mean_len_s": 29.0,
+    "full": 8
+  },
+  {
+    "video": "cow09",
+    "variant": "BoT-SORT 축사튜닝 + 오프라인 정합",
+    "herd": 14,
+    "ids": 15,
+    "ratio": 1.07,
+    "mean_len_s": 54.9,
+    "full": 13
+  },
+  {
+    "video": "cow04",
+    "variant": "ByteTrack (기본)",
+    "herd": 14,
+    "ids": 45,
+    "ratio": 3.21,
+    "mean_len_s": 16.1,
+    "full": 5
+  },
+  {
+    "video": "cow04",
+    "variant": "BoT-SORT (기본)",
+    "herd": 14,
+    "ids": 46,
+    "ratio": 3.29,
+    "mean_len_s": 15.7,
+    "full": 5
+  },
+  {
+    "video": "cow04",
+    "variant": "BoT-SORT 축사튜닝",
+    "herd": 14,
+    "ids": 33,
+    "ratio": 2.36,
+    "mean_len_s": 21.8,
+    "full": 6
+  },
+  {
+    "video": "cow04",
+    "variant": "BoT-SORT 축사튜닝 + 오프라인 정합",
+    "herd": 14,
+    "ids": 15,
+    "ratio": 1.07,
+    "mean_len_s": 56.8,
+    "full": 12
+  }
+]

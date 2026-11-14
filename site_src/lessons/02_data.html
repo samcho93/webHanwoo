@@ -1,0 +1,29 @@
+<p class="lead">알고리즘을 만들기 전에 데이터를 먼저 봅니다. 영상의 해상도·프레임률·길이, 그리고 <b>무엇이 검출과 추적을 어렵게 만드는지</b>를 파악하는 것이 모든 설계의 출발점입니다.</p>
+
+<h2>1. 영상 정보 확인 (ffprobe)</h2>
+<pre><code class="language-bash">for f in E:/Video/cow/*.mp4; do echo $f; ffprobe -v error -select_streams v:0 \
+  -show_entries stream=width,height,r_frame_rate,nb_frames,duration -of csv=p=0 "$f"; done</code></pre>
+<table><tr><th>영상</th><th>해상도</th><th>FPS</th><th>길이</th><th>프레임 수</th></tr>
+<tr><td>cow01, cow02</td><td>854×480</td><td>24</td><td>119초</td><td>2,856</td></tr>
+<tr><td>cow03</td><td>854×480</td><td>24</td><td>1,316초 (약 22분)</td><td>31,593</td></tr>
+<tr><td>cow04 ~ cow10</td><td>854×480</td><td>24</td><td>59.5초</td><td>1,428</td></tr></table>
+
+<h2>2. 프레임 뽑아 눈으로 보기</h2>
+<pre><code class="language-bash">ffmpeg -ss 10 -i E:/Video/cow/cow01.mp4 -frames:v 1 c01.jpg</code></pre>
+<div class="two">
+<figure><img src="assets/img/frame_cow01.jpg"><figcaption>cow01 — 여름, 앞쪽 펜스에서 섭식 중인 소</figcaption></figure>
+<figure><img src="assets/img/frame_cow04.jpg"><figcaption>cow04 — 겨울, 흰색 곤포 사일리지가 앞을 가림</figcaption></figure>
+</div>
+
+<h2>3. 관찰 → 설계 결정</h2>
+<table>
+<tr><th>관찰</th><th>문제</th><th>설계 결정 (레슨)</th></tr>
+<tr><td>카메라가 고정되어 있음</td><td>—</td><td>카메라 움직임 보정(GMC) 끄기, 배경 기반 원근 모델 사용 가능 (06, 08)</td></tr>
+<tr><td>한 축사에 약 10~13마리, 소들이 자주 겹침</td><td>ID 뒤바뀜(ID switch)</td><td>ReID 특징 + 오프라인 정합 (06, 07)</td></tr>
+<tr><td>가운데 기둥, 앞 펜스(스탠천)</td><td>가림 → 트랙 끊김, bbox 크기 급변</td><td>track_buffer 증가, tracklet 정합·보간, 속도 상한 (06~08)</td></tr>
+<tr><td>화면 위쪽(뒤편) 소는 작고, 아래쪽(앞) 소는 큼</td><td>같은 1m 이동도 픽셀 거리가 다름</td><td>체고 기준 원근 보정 (08)</td></tr>
+<tr><td>흰색 곤포 사일리지, 갈색 흙바닥</td><td>COCO 모델이 곤포를 ‘양’으로 오검출, 소와 바닥 색이 비슷</td><td>축사 전용 미세조정 학습 (03~05)</td></tr>
+<tr><td>계절·조명이 다른 영상들</td><td>일반화</td><td>영상 단위 train/val 분리, 밝기 증강 (04, 05)</td></tr>
+<tr><td>소는 대부분 천천히 움직이거나 서 있음</td><td>bbox 떨림이 ‘이동’ 으로 오인</td><td>1초 평활화, 정지 임계값, motion energy 로 국소활동 분리 (08)</td></tr>
+</table>
+<div class="tip">“데이터를 먼저 본다” 는 단계에서 이 표를 만들어 두면, 이후 모든 파라미터에 <b>왜 그 값인지</b> 근거가 생깁니다.</div>

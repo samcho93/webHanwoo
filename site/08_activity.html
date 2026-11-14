@@ -1,0 +1,162 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>활동량 측정 알고리즘 · 한우 활동량 AI 강좌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="assets/style.css"></head><body>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
+<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class='on'><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
+<main class="content"><div class="crumb">Lesson 09 / 12</div><h1>활동량 측정 알고리즘</h1>
+<p class="lead">이제 모든 소가 일관된 ID 를 가진 궤적이 되었습니다. 궤적에서 <b>이동거리, 속도, 행동 상태, 활동지수</b>를 계산합니다. 핵심은 픽셀을 미터로 바꾸는 원근 보정과, bbox 떨림을 실제 움직임으로 착각하지 않게 하는 것입니다.</p>
+
+<h2>1. 픽셀 → 미터: 체고 기준 원근 보정</h2>
+<p>앞 레슨의 원근 모델 <code>h(y)</code> 는 “화면 y 위치에서 소 한 마리의 높이가 몇 픽셀인가” 입니다. 한우 성우의 체고(+머리)를 약 <b>1.3m</b> 로 두면:</p>
+<pre><code class="language-plaintext">m_per_px(y) = 1.3 / h(y)
+이동거리[m] ≈ 픽셀 변위 × m_per_px(y)</code></pre>
+<div class="note">이 방법은 별도 캘리브레이션 없이 쓸 수 있는 근사입니다. 바닥 면의 4개 점의 실제 좌표(예: 축사 모서리)를 알면 <b>호모그래피</b>로 더 정확히 변환할 수 있습니다 (레슨 11).</div>
+
+<h2>2. 떨림 제거와 속도</h2>
+<ul>
+<li>bbox 중심을 <b>1초 이동 중앙값 → 이동 평균</b> 2단 평활화 (중앙값이 튀는 값을 먼저 제거)</li>
+<li>속도 = 평활 위치의 <b>±0.5초 중앙차분</b> (프레임 간 차분은 떨림에 매우 민감)</li>
+<li>속도 상한 2 m/s: 가림으로 박스가 갑자기 커지거나 작아질 때 생기는 가짜 속도 억제</li>
+<li>0.05 m/s 미만은 거리 누적에서 제외 (서 있는 소의 떨림이 거리로 쌓이지 않도록)</li>
+</ul>
+
+<h2>3. 행동 상태 분류</h2>
+<table><tr><th>상태</th><th>조건</th><th>의미</th></tr>
+<tr><td>🟢 Walk (보행)</td><td>속도 ≥ 0.20 m/s</td><td>걸어서 이동</td></tr>
+<tr><td>🟠 Active (국소활동)</td><td>속도 ≥ 0.05 m/s 또는 motion energy ≥ 2.5</td><td>제자리 섭식, 머리·몸 움직임, 천천히 자리 이동</td></tr>
+<tr><td>⚪ Rest (휴식)</td><td>그 외</td><td>서 있거나 누워 쉬는 상태</td></tr></table>
+<p><b>Motion energy</b> = bbox 내부의 연속 프레임 밝기 차이 평균. 위치는 그대로인데 머리를 숙여 사료를 먹는 행동처럼 <b>제자리 움직임</b>을 잡아냅니다. 실제 데이터에서 정지한 소는 약 0.3~1, 섭식·움직이는 소는 2~6 정도였기 때문에 임계값을 2.5 로 정했습니다.</p>
+
+<h2>4. 활동지수 (0~100)</h2>
+<pre><code class="language-plaintext">활동지수 = 100 × ( 0.7 × min(속도/0.5, 1) + 0.3 × min(motion/5, 1) )</code></pre>
+<p>이동(70%)과 제자리 움직임(30%)을 함께 반영한 단일 지표입니다. 개체 간 비교, 시간대별 추이, 이상 개체(평소보다 활동이 급감 → 질병 의심, 급증 → 발정 의심) 탐지의 기초가 됩니다.</p>
+
+<h2>5. 코드</h2>
+<div class="file">📄 hanwoo/activity.py</div><pre><code class="language-python">&quot;&quot;&quot;3단계: 개체별 활동량 계산.
+
+- 위치: bbox 중심을 1초 창으로 평활화 (bbox 떨림 제거)
+- 원근 보정: 화면 y 에서의 소 체고(px) h(y) 로 px→m 변환  (m/px = 체고[m] / h(y))
+- 속도: 평활 위치의 ±0.5초 중앙차분  [m/s]
+- 국소 움직임(motion energy): bbox 내부 프레임차 평균 → 제자리 섭식·머리 움직임 포착
+- 상태: 보행(Walk) / 국소활동(Active) / 휴식(Rest)
+- 활동지수(0~100) = 70%·속도항 + 30%·국소움직임항
+&quot;&quot;&quot;
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+from .config import PipelineConfig
+from .stitching import body_px
+
+
+def compute_activity(df: pd.DataFrame, fps: float, persp, cfg: PipelineConfig) -&gt; pd.DataFrame:
+    win = max(3, int(round(cfg.smooth_window_s * fps)) | 1)
+    half = max(1, int(round(0.5 * fps)))
+    parts = []
+    # 활동량은 &#x27;실제로 검출된&#x27; 프레임으로만 계산한다.
+    # 보간 프레임(검출 누락을 메운 가상 박스)은 위치가 실제가 아니므로 이동거리·속도·상태 계산에서 제외하고,
+    # 아래에서 직전 관측값을 이어받는 &#x27;표시용&#x27; 행으로만 되붙인다.
+    interp_rows = df[df.interp == 1].copy() if &quot;interp&quot; in df else df.iloc[:0].copy()
+    df = df[df.interp == 0] if &quot;interp&quot; in df else df
+    df = df.sort_values([&quot;tid&quot;, &quot;frame&quot;]).copy()
+    # 관측이 끊긴(프레임 불연속) 구간마다 따로 평활·미분 → 장시간 부재 전후 위치가 섞이지 않게
+    df[&quot;seg&quot;] = (df.groupby(&quot;tid&quot;).frame.diff().fillna(1) &gt; 1).groupby(df.tid).cumsum()
+    for (tid, _seg), g in df.groupby([&quot;tid&quot;, &quot;seg&quot;]):
+        g = g.copy()
+        cx = (g.x1 + g.x2) / 2
+        cy = (g.y1 + g.y2) / 2
+        # 중앙값 → 평균 2단 평활화 (outlier 에 강함)
+        sx = cx.rolling(win, center=True, min_periods=1).median().rolling(win, center=True, min_periods=1).mean()
+        sy = cy.rolling(win, center=True, min_periods=1).median().rolling(win, center=True, min_periods=1).mean()
+        m_per_px = cfg.cow_height_m / body_px(sy.to_numpy(), persp)
+        xm = sx.to_numpy() * m_per_px
+        ym = sy.to_numpy() * m_per_px
+        n = len(g)
+        idx = np.arange(n)
+        a = np.clip(idx - half, 0, n - 1)
+        b = np.clip(idx + half, 0, n - 1)
+        frames = g.frame.to_numpy()
+        dt = np.maximum(frames[b] - frames[a], 1) / fps
+        # 같은 m/px 기준으로 변위 계산 (현재 위치 스케일 사용)
+        dx = (sx.to_numpy()[b] - sx.to_numpy()[a]) * m_per_px
+        dy = (sy.to_numpy()[b] - sy.to_numpy()[a]) * m_per_px
+        speed = np.minimum(np.hypot(dx, dy) / dt, cfg.max_speed)
+        motion = g.motion.where(g.interp == 0).ffill().bfill().fillna(0)
+        motion_s = motion.rolling(win, center=True, min_periods=1).mean().to_numpy()
+
+        state = np.zeros(n, int)
+        state[(speed &gt;= cfg.rest_speed) | (motion_s &gt;= cfg.motion_energy_active)] = 1
+        state[speed &gt;= cfg.walk_speed] = 2
+        act = 100 * (0.7 * np.clip(speed / 0.5, 0, 1) + 0.3 * np.clip(motion_s / cfg.motion_norm, 0, 1))
+        step = np.where(speed &gt;= cfg.rest_speed, speed / fps, 0.0)  # 정지 떨림은 거리 누적 제외
+
+        g[&quot;cx&quot;], g[&quot;cy&quot;] = sx.to_numpy(), sy.to_numpy()
+        g[&quot;xm&quot;], g[&quot;ym&quot;] = xm, ym
+        g[&quot;speed&quot;] = speed
+        g[&quot;motion_s&quot;] = motion_s
+        g[&quot;state&quot;] = state
+        g[&quot;activity&quot;] = act
+        g[&quot;step&quot;] = step
+        parts.append(g)
+    out = pd.concat(parts)
+    if len(interp_rows):
+        ir = interp_rows.copy()
+        ir[&quot;cx&quot;], ir[&quot;cy&quot;] = (ir.x1 + ir.x2) / 2, (ir.y1 + ir.y2) / 2
+        ir[&quot;speed&quot;], ir[&quot;step&quot;] = 0.0, 0.0
+        out = pd.concat([out, ir]).sort_values([&quot;tid&quot;, &quot;frame&quot;])
+        carry = [&quot;xm&quot;, &quot;ym&quot;, &quot;motion_s&quot;, &quot;state&quot;, &quot;activity&quot;]
+        out[carry] = out.groupby(&quot;tid&quot;)[carry].ffill().bfill()
+        out[&quot;state&quot;] = out.state.astype(int)
+    out = out.sort_values([&quot;frame&quot;, &quot;tid&quot;]).reset_index(drop=True)
+    out[&quot;dist_cum&quot;] = out.groupby(&quot;tid&quot;).step.cumsum()
+    out = out.drop(columns=[&quot;seg&quot;, &quot;step&quot;])
+    out[&quot;t&quot;] = out.frame / fps
+    return out
+
+
+def summarize(act: pd.DataFrame, fps: float) -&gt; pd.DataFrame:
+    rows = []
+    for tid, g_all in act.groupby(&quot;tid&quot;):
+        g = g_all[g_all.interp == 0]          # 통계는 실제 관측 프레임만
+        n = len(g)
+        rows.append(dict(
+            id=int(tid),
+            first_s=round(g_all.t.min(), 1), last_s=round(g_all.t.max(), 1),
+            tracked_s=round(n / fps, 1),
+            observed_ratio=round(n / max(int(g_all.frame.max() - g_all.frame.min()) + 1, 1), 3),
+            distance_m=round(float(g_all.dist_cum.iloc[-1]), 2),
+            mean_speed=round(float(g.speed.mean()), 3),
+            max_speed=round(float(g.speed.quantile(0.98)), 3),
+            rest_pct=round(100 * float((g.state == 0).mean()), 1),
+            active_pct=round(100 * float((g.state == 1).mean()), 1),
+            walk_pct=round(100 * float((g.state == 2).mean()), 1),
+            activity_index=round(float(g.activity.mean()), 1),
+        ))
+    return pd.DataFrame(rows)
+
+
+def timeseries(act: pd.DataFrame, bin_s: float = 5.0) -&gt; pd.DataFrame:
+    &quot;&quot;&quot;bin_s 초 단위로 개체별 평균 활동지수 / 이동거리.&quot;&quot;&quot;
+    a = act[act.interp == 0].copy()
+    a[&quot;bin&quot;] = (a.t // bin_s * bin_s).round(1)
+    g = a.groupby([&quot;bin&quot;, &quot;tid&quot;]).agg(activity=(&quot;activity&quot;, &quot;mean&quot;), speed=(&quot;speed&quot;, &quot;mean&quot;)).reset_index()
+    return g</code></pre>
+
+<h2>6. 출력 데이터</h2>
+<table><tr><th>파일</th><th>내용</th></tr>
+<tr><td><code>tracks_activity.csv</code></td><td>프레임 × 개체: 박스, 평활 위치, 속도, motion, 상태, 활동지수, 누적거리, 보간 여부</td></tr>
+<tr><td><code>summary.csv</code></td><td>개체별: 추적시간, 실관측비율, 이동거리, 평균/최대 속도, 상태 비율, 평균 활동지수</td></tr></table>
+<div class="tip">이 수치는 <b>상대 비교</b>(개체 간, 날짜 간)에 특히 유용합니다. 같은 카메라에서 매일 측정하면 개체별 기준선을 만들고, 기준선에서 벗어나는 소를 알림으로 받을 수 있습니다.</div>
+
+<div class="pager"><a href='07b_reid.html'>← ReID 학습과 고정 개체군 ID 유지</a><a class='nx' href='09_visualize.html'>결과 영상과 대시보드 →</a></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+</body></html>

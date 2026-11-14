@@ -1,0 +1,117 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>개발 환경 구축 · 한우 활동량 AI 강좌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="assets/style.css"></head><body>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
+<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class='on'><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
+<main class="content"><div class="crumb">Lesson 01 / 12</div><h1>개발 환경 구축</h1>
+<p class="lead">GPU 로 딥러닝을 돌리기 위한 환경을 처음부터 구성합니다. 이 강좌의 모든 결과는 아래 명령 그대로 구축한 환경에서 만들어졌습니다.</p>
+
+<table>
+<tr><th>구성요소</th><th>본 강좌 버전</th><th>역할</th></tr>
+<tr><td>OS</td><td>Windows 11</td><td>Linux/macOS 도 명령만 조금 다름</td></tr>
+<tr><td>GPU / 드라이버</td><td>NVIDIA TITAN RTX 24GB / 드라이버 610.x</td><td>학습·추론 가속</td></tr>
+<tr><td>Python</td><td>3.14</td><td>프로그래밍 언어</td></tr>
+<tr><td>PyTorch</td><td>2.11.0 + CUDA 12.8 빌드 (cu128)</td><td>딥러닝 프레임워크</td></tr>
+<tr><td>Ultralytics</td><td>8.4.x</td><td>YOLO11 검출·학습·추적(BoT-SORT/ByteTrack)</td></tr>
+<tr><td>OpenCV, pandas, SciPy, lap</td><td>최신</td><td>영상 처리, 데이터 처리, Hungarian 알고리즘</td></tr>
+<tr><td>FFmpeg</td><td>정적 빌드</td><td>영상 정보 확인, 브라우저 호환 H.264 인코딩</td></tr>
+</table>
+
+<h2>1. GPU 드라이버 확인</h2>
+<p>PyTorch 는 CUDA Toolkit 을 따로 설치하지 않아도 됩니다(휠 안에 CUDA 런타임 포함). <b>드라이버만</b> 최신이면 됩니다.</p>
+<pre><code class="language-bash">nvidia-smi</code></pre>
+<p>출력 오른쪽 위 <code>CUDA Version</code> 이 설치할 PyTorch 의 CUDA 버전(예: 12.8) 이상이면 OK. 낮으면 <a href="https://www.nvidia.com/drivers">NVIDIA 드라이버</a>를 업데이트하세요.</p>
+
+<h2>2. Python 설치</h2>
+<p><a href="https://www.python.org/downloads/">python.org</a> 에서 3.12 이상을 설치합니다. 설치 화면에서 <b>“Add python.exe to PATH”</b> 를 체크하세요. 여러 버전이 있으면 Windows 의 <code>py</code> 런처로 확인/선택할 수 있습니다.</p>
+<pre><code class="language-bash">py -0p          # 설치된 파이썬 목록
+python --version</code></pre>
+<div class="note">Anaconda 를 써도 되지만, 이 강좌는 가볍고 재현이 쉬운 <b>표준 venv</b> 를 사용합니다.</div>
+
+<h2>3. 프로젝트 폴더와 가상환경</h2>
+<p>가상환경(venv)은 프로젝트마다 독립된 패키지 공간을 만들어 버전 충돌을 막습니다.</p>
+<pre><code class="language-bash">mkdir D:\Work\Web\webHanwoo
+cd D:\Work\Web\webHanwoo
+py -3.14 -m venv .venv</code></pre>
+<p>활성화 (터미널 종류별):</p>
+<pre><code class="language-bash"># PowerShell
+.\.venv\Scripts\Activate.ps1
+# cmd
+.venv\Scripts\activate.bat
+# Git Bash / Linux / macOS
+source .venv/Scripts/activate      # Linux/macOS 는 .venv/bin/activate</code></pre>
+<div class="note">PowerShell 에서 “스크립트를 실행할 수 없습니다” 오류가 나면 한 번만 실행:
+<code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code></div>
+
+<h2>4. PyTorch (GPU 버전) 설치</h2>
+<p>그냥 <code>pip install torch</code> 하면 Windows 에서는 <b>CPU 버전</b>이 설치될 수 있습니다. 반드시 CUDA 인덱스 URL 을 지정합니다. (<a href="https://pytorch.org/get-started/locally/">pytorch.org</a> 에서 자신의 환경에 맞는 명령을 확인)</p>
+<pre><code class="language-bash">python -m pip install --upgrade pip
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128</code></pre>
+<p>설치 확인:</p>
+<pre><code class="language-bash">python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+# 2.11.0+cu128 True NVIDIA TITAN RTX</code></pre>
+
+<h2>5. YOLO(Ultralytics) 와 나머지 패키지</h2>
+<pre><code class="language-bash">pip install ultralytics pandas scipy lap
+python -c "import ultralytics; ultralytics.checks()"</code></pre>
+<p><code>ultralytics</code> 가 OpenCV, NumPy, matplotlib 등을 함께 설치합니다. <code>lap</code> 은 추적기에서 쓰는 빠른 선형 할당(Hungarian) 라이브러리입니다. 재현을 위해 버전을 기록해 둡니다:</p>
+<pre><code class="language-bash">pip freeze > requirements.lock.txt</code></pre>
+<p>새 PC 에서는 <code>requirements.txt</code> 로 한 번에 설치할 수 있습니다:</p>
+<div class="file">📄 requirements.txt</div><pre><code class="language-plaintext"># GPU 버전 torch 는 먼저 별도로 설치:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+ultralytics&gt;=8.4
+opencv-python&gt;=4.10
+numpy
+pandas
+scipy
+lap
+matplotlib</code></pre>
+
+<h2>6. FFmpeg 설치</h2>
+<p>OpenCV 의 기본 mp4 코덱(mp4v)은 <b>웹 브라우저에서 재생되지 않습니다</b>. 결과 영상을 대시보드에서 바로 보려면 FFmpeg 로 H.264 인코딩합니다.</p>
+<ol>
+<li><a href="https://www.gyan.dev/ffmpeg/builds/">gyan.dev</a> 에서 <code>ffmpeg-release-essentials.zip</code> 다운로드 → <code>D:\ffmpeg</code> 에 압축 해제</li>
+<li>시스템 환경변수 <code>Path</code> 에 <code>D:\ffmpeg\bin</code> 추가 → 터미널 재시작</li>
+<li>확인: <code>ffmpeg -version</code></li>
+</ol>
+<p>(Linux: <code>sudo apt install ffmpeg</code>, macOS: <code>brew install ffmpeg</code>)</p>
+
+<h2>7. 사전학습 가중치 준비</h2>
+<p>YOLO 가중치는 처음 사용할 때 자동 다운로드됩니다. 이 강좌는 <code>models/</code> 에 모아 둡니다.</p>
+<pre><code class="language-bash">mkdir models
+cd models
+python -c "from ultralytics import YOLO; YOLO('yolo11s.pt'); YOLO('yolo11x.pt')"
+cd ..</code></pre>
+<table><tr><th>모델</th><th>크기</th><th>용도</th></tr>
+<tr><td>yolo11s.pt</td><td>약 19MB</td><td>student: 미세조정 후 실제 추적에 사용 (빠름)</td></tr>
+<tr><td>yolo11x.pt</td><td>약 110MB</td><td>teacher: 학습 데이터 자동 라벨링에 사용 (정확, 느림)</td></tr></table>
+
+<h2>8. 동작 확인 (Hello YOLO)</h2>
+<pre><code class="language-bash">python -c "from ultralytics import YOLO; r=YOLO('models/yolo11s.pt').predict('https://ultralytics.com/images/bus.jpg', device=0); print(r[0].boxes.cls)"</code></pre>
+<p>클래스 번호 목록이 출력되면 환경 구축 완료입니다.</p>
+
+<h2>9. 편집기</h2>
+<p>VS Code + Python 확장을 권장합니다. <code>Ctrl+Shift+P → Python: Select Interpreter</code> 에서 <code>.venv</code> 의 파이썬을 선택하세요.</p>
+
+<h2>자주 만나는 문제</h2>
+<table>
+<tr><th>증상</th><th>원인 / 해결</th></tr>
+<tr><td><code>torch.cuda.is_available()</code> 가 False</td><td>CPU 버전 torch 설치됨 → <code>pip uninstall torch torchvision</code> 후 4단계 명령(--index-url) 으로 재설치. 드라이버 버전도 확인.</td></tr>
+<tr><td>학습 중 <code>CUDA out of memory</code></td><td><code>--batch 8</code> 또는 <code>--imgsz 640</code> 으로 낮추기</td></tr>
+<tr><td>Windows 에서 학습 시작 시 DataLoader 오류/무한 대기</td><td>스크립트에 <code>if __name__ == "__main__":</code> 가드 필수 (본 강좌 스크립트에 포함), 또는 <code>workers=0</code></td></tr>
+<tr><td><code>ffmpeg</code> 를 찾을 수 없음</td><td>Path 등록 후 터미널(및 VS Code) 재시작</td></tr>
+<tr><td>결과 mp4 가 브라우저에서 재생 안 됨</td><td>mp4v 코덱 → FFmpeg libx264 + <code>-pix_fmt yuv420p</code> 로 인코딩</td></tr>
+<tr><td>한글 경로에서 OpenCV <code>imread</code> 실패</td><td>영상·데이터는 영문 경로에 두거나 <code>cv2.imdecode(np.fromfile(path))</code> 사용</td></tr>
+</table>
+
+<div class="pager"><a href='index.html'>← 강좌 소개와 전체 구조</a><a class='nx' href='02_data.html'>데이터(축사 영상) 이해 →</a></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+</body></html>

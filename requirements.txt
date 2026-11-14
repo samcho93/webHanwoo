@@ -1,0 +1,9 @@
+# GPU 버전 torch 는 먼저 별도로 설치:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+ultralytics>=8.4
+opencv-python>=4.10
+numpy
+pandas
+scipy
+lap
+matplotlib

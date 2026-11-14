@@ -1,0 +1,137 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>학습 데이터 자동 구축 (Pseudo-labeling) · 한우 활동량 AI 강좌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="assets/style.css"></head><body>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
+<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class='on'><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
+<main class="content"><div class="crumb">Lesson 04 / 12</div><h1>학습 데이터 자동 구축 (Pseudo-labeling)</h1>
+<p class="lead">YOLO11x(teacher)로 축사 영상의 프레임을 자동 라벨링해 YOLO 형식 데이터셋을 만듭니다. 사람의 라벨링 없이 약 1,100장, 11,000개 이상의 박스를 확보합니다.</p>
+
+<h2>1. YOLO 데이터셋 형식</h2>
+<pre><code class="language-plaintext">data/hanwoo_ds/
+├─ hanwoo.yaml          # 경로·클래스 정의
+├─ images/train/cow01_000024.jpg ...
+├─ images/val/...
+├─ labels/train/cow01_000024.txt ...   # 이미지와 같은 이름
+└─ labels/val/...</code></pre>
+<p>라벨 파일 한 줄 = 박스 하나: <code>클래스 x중심 y중심 너비 높이</code> (모두 0~1 로 정규화)</p>
+<pre><code class="language-plaintext">0 0.632164 0.237500 0.068493 0.135417
+0 0.401639 0.264583 0.049180 0.120833</code></pre>
+
+<h2>2. 좋은 자동 라벨을 위한 4가지 장치</h2>
+<table>
+<tr><th>장치</th><th>이유</th></tr>
+<tr><td><b>영상 단위</b> train/val 분리 (val = cow02, cow09)</td><td>같은 영상의 이웃 프레임은 거의 똑같다. 섞으면 검증 점수가 부풀려져 ‘다른 영상에서의 성능’ 을 알 수 없다.</td></tr>
+<tr><td>프레임 간격 샘플링 (1초, 긴 영상은 3초)</td><td>중복 프레임 제거, 22분 영상이 데이터를 독점하지 않도록</td></tr>
+<tr><td>TTA(<code>augment=True</code>) + 고해상도 1280</td><td>teacher 성능을 최대로: 좌우반전·다중 스케일 추론 결과를 합침</td></tr>
+<tr><td><b>무시 영역(ignore region)</b>: 신뢰도 0.15~0.40 박스는 회색으로 칠함</td><td>애매한 박스를 정답으로 넣으면 오라벨, 빼면 ‘배경’ 으로 학습되어 소를 배경이라고 가르치게 된다. 회색으로 지워 둘 다 피한다.</td></tr>
+</table>
+<figure><img src="assets/img/ds_sample.jpg"><figcaption>자동 라벨 예시 — 초록 박스: 정답(≥0.40), 회색 영역: 무시 영역(애매한 검출)</figcaption></figure>
+
+<h2>3. 코드</h2>
+<div class="file">📄 scripts/prepare_dataset.py</div><pre><code class="language-python">&quot;&quot;&quot;학습 데이터 자동 구축 (Pseudo-labeling / Knowledge distillation).
+
+대형 COCO 모델(teacher, YOLO11x + TTA, 고해상도)로 축사 영상 프레임을 자동 라벨링하여
+&#x27;hanwoo&#x27; 단일 클래스 YOLO 데이터셋을 만든다. 이후 경량 모델(student, YOLO11s)을 이 데이터로
+미세조정(fine-tune)하면, 축사 환경(펜스 가림·원거리 소·소/말 혼동)에 특화되면서도 빠른 검출기를 얻는다.
+
+  - 영상 단위로 train / val 분리 (같은 영상 프레임이 양쪽에 섞이면 성능이 과대평가됨)
+  - 프레임 샘플링 간격: 짧은 영상 1초, 긴 영상 3초 (중복 프레임 최소화)
+  - teacher 신뢰도 &gt;= hi(0.4) 는 정답 라벨, lo~hi 사이의 &#x27;애매한&#x27; 박스는 회색으로 칠해 무시영역(ignore region)
+    처리 → 학습 시 정답도 배경도 아닌 영역이 되어 노이즈 라벨을 막는다.
+  - 사용 클래스: cow(19), horse(17). sheep 은 흰색 사료 곤포(베일)를 오검출하므로 제외
+
+usage: python scripts/prepare_dataset.py E:/Video/cow --val cow02 cow09
+&quot;&quot;&quot;
+import argparse
+import shutil
+import sys
+from pathlib import Path
+
+import cv2
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from hanwoo.config import DATA_DIR  # noqa: E402
+
+ANIMALS = [17, 19]  # horse, cow → &#x27;한우&#x27; 후보 (sheep 은 곤포 오검출이 많아 제외)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument(&quot;video_dir&quot;)
+    ap.add_argument(&quot;--val&quot;, nargs=&quot;+&quot;, default=[&quot;cow02&quot;, &quot;cow09&quot;])
+    ap.add_argument(&quot;--teacher&quot;, default=&quot;yolo11x.pt&quot;)
+    ap.add_argument(&quot;--imgsz&quot;, type=int, default=1280)
+    ap.add_argument(&quot;--hi&quot;, type=float, default=0.40)
+    ap.add_argument(&quot;--lo&quot;, type=float, default=0.15)
+    ap.add_argument(&quot;--out&quot;, default=str(DATA_DIR / &quot;hanwoo_ds&quot;))
+    a = ap.parse_args()
+
+    from ultralytics import YOLO
+    teacher = YOLO(a.teacher)
+    out = Path(a.out)
+    if out.exists():
+        shutil.rmtree(out)
+    for s in (&quot;train&quot;, &quot;val&quot;):
+        (out / &quot;images&quot; / s).mkdir(parents=True)
+        (out / &quot;labels&quot; / s).mkdir(parents=True)
+
+    stats = {&quot;train&quot;: [0, 0, 0], &quot;val&quot;: [0, 0, 0]}  # frames, boxes, ignored boxes
+    for vp in sorted(Path(a.video_dir).glob(&quot;*.mp4&quot;)):
+        split = &quot;val&quot; if vp.stem in a.val else &quot;train&quot;
+        cap = cv2.VideoCapture(str(vp))
+        fps = cap.get(cv2.CAP_PROP_FPS) or 24
+        n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        every = int(fps * (3 if n / fps &gt; 300 else 1))
+        fi = 0
+        while True:
+            ok = cap.grab()
+            if not ok:
+                break
+            if fi % every == 0:
+                _, frame = cap.retrieve()
+                r = teacher.predict(frame, imgsz=a.imgsz, conf=a.lo, classes=ANIMALS, agnostic_nms=True,
+                                    augment=True, verbose=False)[0]
+                confs = r.boxes.conf.cpu().numpy()
+                amb = (confs &gt;= a.lo) &amp; (confs &lt; a.hi)
+                for x1, y1, x2, y2 in r.boxes.xyxy.cpu().numpy()[amb].astype(int):
+                    frame[y1:y2, x1:x2] = (114, 114, 114)  # ignore region (YOLO letterbox 회색)
+                stats[split][2] += int(amb.sum())
+                if True:
+                    xywhn = r.boxes.xywhn.cpu().numpy()[confs &gt;= a.hi]
+                    stem = f&quot;{vp.stem}_{fi:06d}&quot;
+                    cv2.imwrite(str(out / &quot;images&quot; / split / f&quot;{stem}.jpg&quot;), frame)
+                    with open(out / &quot;labels&quot; / split / f&quot;{stem}.txt&quot;, &quot;w&quot;) as f:
+                        for x, y, w, h in xywhn:
+                            f.write(f&quot;0 {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n&quot;)
+                    stats[split][0] += 1
+                    stats[split][1] += len(xywhn)
+            fi += 1
+        cap.release()
+        print(f&quot;{vp.name} [{split}] done → {stats}&quot;)
+
+    (out / &quot;hanwoo.yaml&quot;).write_text(
+        f&quot;path: {out.as_posix()}\ntrain: images/train\nval: images/val\nnames:\n  0: hanwoo\n&quot;, encoding=&quot;utf-8&quot;)
+    print(&quot;dataset:&quot;, out, stats)
+
+
+if __name__ == &quot;__main__&quot;:
+    main()</code></pre>
+
+<h2>4. 실행</h2>
+<pre><code class="language-bash">python scripts/prepare_dataset.py E:/Video/cow --teacher models/yolo11x.pt --val cow02 cow09</code></pre>
+<table><tr><th>split</th><th>이미지</th><th>정답 박스</th><th>무시 영역</th></tr>
+<tr><td>train (8개 영상)</td><td>918</td><td>9,635</td><td>1,940</td></tr>
+<tr><td>val (cow02, cow09)</td><td>179</td><td>1,918</td><td>220</td></tr></table>
+<div class="note"><b>한계</b>: teacher 가 틀리면 student 도 틀린 것을 배웁니다. 정밀도가 더 필요하면 이 자동 라벨을 <a href="https://www.cvat.ai/">CVAT</a> 나 <a href="https://labelstud.io/">Label Studio</a> 에 올려 사람이 <b>수정만</b> 하는 방식(모델 보조 라벨링)이 가장 효율적입니다. 검증셋(val)만이라도 사람이 검수하면 평가 신뢰도가 크게 올라갑니다.</div>
+
+<div class="pager"><a href='03_detect.html'>← 객체 검출: 사전학습 YOLO 시험</a><a class='nx' href='05_train.html'>YOLO 미세조정 학습과 평가 →</a></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+</body></html>

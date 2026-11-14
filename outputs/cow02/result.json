@@ -1,0 +1,112 @@
+{
+  "result": {
+    "name": "cow02",
+    "duration_s": 119.0,
+    "n_ids": 14,
+    "raw_ids": 34,
+    "total_distance": 44.12,
+    "mean_activity": 8.264285714285714,
+    "proc_fps": 42.23919130479166,
+    "track_time_s": 67.6,
+    "n_frames": 2856,
+    "render_time_s": 0.0,
+    "perspective": {
+      "a": 0.33625150093027134,
+      "b": 18.507304590631048
+    },
+    "n_links": 11,
+    "method": "reid+herd",
+    "herd_size": 14,
+    "unassigned_det_ratio": 0.0008,
+    "n_splits": 0
+  },
+  "info": {
+    "model": "hanwoo_yolo11s.pt",
+    "cow_height_m": 1.3,
+    "perspective": {
+      "a": 0.33625150093027134,
+      "b": 18.507304590631048
+    },
+    "stitch_links": [
+      {
+        "stage": "short",
+        "src": 27,
+        "dst": 1,
+        "cost": 0.198
+      },
+      {
+        "stage": "short",
+        "src": 19,
+        "dst": 3,
+        "cost": 0.334
+      },
+      {
+        "stage": "short",
+        "src": 16,
+        "dst": 6,
+        "cost": 0.5
+      },
+      {
+        "stage": "short",
+        "src": 31,
+        "dst": 7,
+        "cost": 0.394
+      },
+      {
+        "stage": "short",
+        "src": 17,
+        "dst": 12,
+        "cost": 0.685
+      },
+      {
+        "stage": "short",
+        "src": 20,
+        "dst": 16,
+        "cost": 0.71
+      },
+      {
+        "stage": "short",
+        "src": 22,
+        "dst": 19,
+        "cost": 0.632
+      },
+      {
+        "stage": "short",
+        "src": 24,
+        "dst": 20,
+        "cost": 0.415
+      },
+      {
+        "stage": "short",
+        "src": 26,
+        "dst": 24,
+        "cost": 0.396
+      },
+      {
+        "stage": "short",
+        "src": 29,
+        "dst": 27,
+        "cost": 0.513
+      },
+      {
+        "stage": "short",
+        "src": 33,
+        "dst": 31,
+        "cost": 0.078
+      }
+    ],
+    "raw_ids": 34,
+    "identity": {
+      "herd_size": 14,
+      "slots": 14,
+      "tracklets": 16,
+      "unassigned_tracklets": 1,
+      "unassigned_det_ratio": 0.0008,
+      "icm_moves": [
+        0
+      ]
+    },
+    "swap_splits": [],
+    "reid": "hanwoo_reid.pt"
+  }
+}

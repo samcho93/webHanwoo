@@ -1,0 +1,71 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>강좌 소개와 전체 구조 · 한우 활동량 AI 강좌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="assets/style.css"></head><body>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
+<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class='on'><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
+<main class="content"><div class="crumb">Lesson 00 / 12</div><h1>강좌 소개와 전체 구조</h1>
+<p class="lead">고정 카메라로 촬영한 한우 축사 영상에서 <b>소 한 마리 한 마리에 ID를 부여</b>하고, 각 개체의 <b>이동거리·속도·행동 상태·활동지수</b>를 자동으로 측정하는 파이썬 프로그램을 처음부터 끝까지 만들어 봅니다. 사전학습 YOLO를 그대로 쓰는 데서 멈추지 않고, 축사 환경에 맞게 <b>직접 학습</b>시키고, 추적 ID가 끊기는 문제를 <b>오프라인 정합 알고리즘</b>으로 해결합니다.</p>
+
+<figure><img src="assets/img/snap_tracked.jpg" alt="ID가 부여된 결과 영상 프레임"><figcaption>최종 결과 영상 — 개체별 ID 박스·이동 궤적·실시간 활동량 패널</figcaption></figure>
+
+<h2>무엇을 만드나</h2>
+<div class="flow"><div>축사 영상</div><i>→</i><div>① 검출<br><small>YOLO11 (미세조정)</small></div><i>→</i><div>② 온라인 추적<br><small>BoT-SORT</small></div><i>→</i><div>③ ID 정합<br><small>Tracklet stitching</small></div><i>→</i><div>④ 활동량<br><small>원근보정 속도·상태</small></div><i>→</i><div>⑤ 영상+대시보드</div></div>
+
+<table>
+<tr><th>단계</th><th>핵심 기술</th><th>해결하는 문제</th></tr>
+<tr><td>검출</td><td>YOLO11s 를 축사 영상으로 미세조정 (teacher-student 자동 라벨링)</td><td>원거리·가려진 소의 낮은 신뢰도, 사료 곤포(베일)를 동물로 오검출</td></tr>
+<tr><td>온라인 추적</td><td>BoT-SORT (Kalman 필터 + Hungarian 매칭 + ReID)</td><td>프레임 간 같은 소를 같은 ID로 연결</td></tr>
+<tr><td>ID 정합</td><td>원근 정규화 거리 + 외형 히스토그램 비용 → Hungarian 최적 연결</td><td>기둥·펜스 뒤로 사라졌다 나타날 때 ID가 바뀌는 문제</td></tr>
+<tr><td>활동량</td><td>체고 기준 원근 보정, 중앙차분 속도, 프레임차 motion energy</td><td>화면 위·아래에서 같은 이동이 다른 픽셀 거리로 보이는 문제, bbox 떨림</td></tr>
+<tr><td>시각화</td><td>OpenCV + FFmpeg(H.264), Plotly 대시보드</td><td>사람이 바로 이해할 수 있는 결과물</td></tr>
+</table>
+
+<h2>프로젝트 구조</h2>
+<pre><code class="language-plaintext">webHanwoo/
+├─ hanwoo/                  # 핵심 패키지
+│  ├─ config.py             # 모든 파라미터 (한 곳에서 튜닝)
+│  ├─ detect_track.py       # ① 검출 + ② 온라인 추적 + 특징 수집
+│  ├─ stitching.py          # ③ 원근 모델 + tracklet 정합 + 보간
+│  ├─ reid.py               # ③' 소 재식별(ReID) 모델 · crop · 임베딩
+│  ├─ identity.py           # ③' 스왑 분리 + 고정 개체군(N) ID 배정
+│  ├─ activity.py           # ④ 속도·상태·활동지수
+│  ├─ render.py             # ⑤ 결과 영상 렌더링
+│  ├─ dashboard.py          # ⑤ HTML 대시보드
+│  └─ pipeline.py           # 전체 연결
+├─ configs/hanwoo_botsort.yaml  # 축사용 추적기 설정
+├─ scripts/
+│  ├─ prepare_dataset.py    # 자동 라벨링으로 학습 데이터 구축
+│  ├─ train.py              # YOLO 미세조정
+│  ├─ prepare_reid.py       # ReID 자기지도 데이터
+│  ├─ train_reid.py         # ReID 학습·평가
+│  ├─ identity_sheet.py     # ID 콘택트 시트
+│  ├─ compare_trackers.py   # 추적 알고리즘 비교 실험
+│  └─ build_site.py         # 이 강좌 사이트 생성
+├─ run_activity.py          # ★ 실행 진입점 (폴더/파일)
+├─ models/                  # 가중치 (hanwoo_yolo11s.pt)
+├─ outputs/                 # 영상별 결과 + index.html
+└─ site/                    # 강좌 사이트</code></pre>
+
+<h2>한 줄 실행</h2>
+<pre><code class="language-bash">python run_activity.py E:/Video/cow</code></pre>
+<p>폴더 안의 모든 mp4 마다 <code>outputs/&lt;영상명&gt;/</code> 에 결과 영상(<code>*_tracked.mp4</code>), 프레임별 데이터(<code>tracks_activity.csv</code>), 개체 요약(<code>summary.csv</code>), 대시보드(<code>dashboard.html</code>)가 만들어지고, <code>outputs/index.html</code> 에 전체 요약이 생성됩니다.</p>
+
+<h2>수강 준비물</h2>
+<ul>
+<li>NVIDIA GPU 가 있는 Windows/Linux PC (본 강좌: TITAN RTX 24GB, Windows 11). GPU 없이도 동작하지만 느립니다.</li>
+<li>파이썬 기초(함수, 리스트), pandas/NumPy 를 들어본 정도</li>
+<li>축사 영상 (본 강좌: 854×480, 24fps, 10개 · 총 약 30분)</li>
+</ul>
+<div class="tip">각 레슨의 코드 블록은 저장소의 <b>실제 소스 파일에서 자동으로 삽입</b>됩니다. 강좌와 코드가 항상 일치합니다.</div>
+
+<div class="pager"><span></span><a class='nx' href='01_env.html'>개발 환경 구축 →</a></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+</body></html>

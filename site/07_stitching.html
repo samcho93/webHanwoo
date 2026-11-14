@@ -1,0 +1,256 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ID 일관성: 오프라인 Tracklet 정합 · 한우 활동량 AI 강좌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="assets/style.css"></head><body>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
+<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class='on'><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class=''><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
+<main class="content"><div class="crumb">Lesson 07 / 12</div><h1>ID 일관성: 오프라인 Tracklet 정합</h1>
+<p class="note">ReID 모델이 있으면(<code>models/hanwoo_reid.pt</code>) 이 레슨의 <b>1차 정합만</b> 쓰고, 장시간 재등장은 다음 레슨의 <b>고정 개체군 ID 배정</b>이 맡습니다. ReID 모델이 없을 때는 여기의 2단계 정합이 그대로 동작합니다.</p>
+<p class="lead">온라인 추적기는 “지금까지” 의 정보만으로 결정해야 합니다. 하지만 녹화 영상 분석에서는 <b>영상 전체를 다 본 뒤</b> 다시 판단할 수 있습니다. 축사는 <b>닫힌 공간 + 고정 카메라 + 같은 개체군</b>이라는 강한 조건이 있으므로, 끊어진 조각(tracklet)들을 다시 이어붙이는 것이 ID 일관성을 높이는 가장 효과적인 방법입니다.</p>
+
+<figure><img src="assets/img/stitch_timeline.png"><figcaption>tracklet 타임라인 — 위: 온라인 추적기 결과(조각난 ID), 아래: 정합 후(한 마리 = 한 줄)</figcaption></figure>
+
+<h2>1. 알고리즘</h2>
+<ol>
+<li><b>노이즈 제거</b>: 0.5초(12프레임) 미만 tracklet 은 오검출로 보고 제거</li>
+<li><b>원근 모델</b>: 같은 소라도 화면 위쪽(먼 곳)은 작게 보인다. 모든 검출에서 bbox 높이 h 와 중심 y 의 관계 <code>h(y) = a·y + b</code> 를 적합 → 거리를 “몸 크기 단위” 로 정규화</li>
+<li><b>연결 후보</b>: tracklet i 가 끝난 뒤 j 가 시작하고(시간 겹침 없음), 공백 ≤ 20초, 끝-시작 위치 거리 ≤ <code>2.5 + 0.6×공백(초)</code> 몸길이</li>
+<li><b>비용</b> <code>= 0.5 × (거리 / 허용거리) + 0.5 × 외형거리(Bhattacharyya) + 0.15 × (공백/최대공백)</code></li>
+<li><b>Hungarian</b> 으로 ‘끝’ ↔ ‘시작’ 1:1 최적 연결, 비용 &lt; 0.85 인 쌍만 병합. 연결이 없을 때까지 반복(체인 i→j→k 처리)</li>
+<li><b>2단계 정합</b>: 위 과정을 조건을 바꿔 두 번 수행
+<table><tr><th></th><th>1차 (짧은 끊김)</th><th>2차 (장시간 재등장)</th></tr>
+<tr><td>최대 공백</td><td>20초</td><td>5분</td></tr>
+<tr><td>허용 거리</td><td>2.5 + 0.6×공백 몸길이 (시간에 비례)</td><td>3 몸길이 고정 (사라진 <b>자리 근처</b>에서 재등장)</td></tr>
+<tr><td>외형 가중치 / 임계 비용</td><td>0.5 / 0.85</td><td>0.6 / 0.55 (더 엄격)</td></tr>
+<tr><td>대상</td><td>기둥·펜스 뒤 통과, 소끼리 잠깐 겹침</td><td>누워 있어 검출이 끊긴 소, 사료조 앞 군집</td></tr></table></li>
+<li><b>ID 재부여</b> (등장 순 1, 2, 3 …) + 0.5초 이하의 순간적인 검출 누락만 선형 <b>보간</b> (결과 영상에 얇은 박스로 표시)</li>
+</ol>
+<div class="tip"><b>보간은 짧게!</b> 처음에는 20초까지 보간했더니, 소가 누워 검출이 끊긴 동안 <b>소가 없는 자리에 가상 박스와 이동 경로</b>가 그려지고, 그 가짜 이동이 전체 이동거리의 23~32%를 차지했습니다. 지금은 0.5초 이하만 메우고, 더 긴 공백은 “보이지 않음”으로 둡니다. 활동량도 실제 검출 프레임으로만 계산합니다(레슨 09).</div>
+
+<h3>왜 bbox 높이로 원근을 잡나?</h3>
+<p>소의 실제 크기는 거의 같으므로, 화면에서의 크기 변화는 대부분 카메라와의 거리 때문입니다. 가림으로 잘린 박스가 많아 단순 평균은 작게 치우치므로, y 구간별 <b>75% 분위</b> 높이(대체로 가려지지 않은 소)를 써서 robust 하게 적합합니다.</p>
+<figure><img src="assets/img/perspective.png"><figcaption>bbox 높이 vs 화면 y — 선형 원근 모델 적합</figcaption></figure>
+
+<h3>외형 특징: H-S 색 히스토그램</h3>
+<p>bbox 중앙 60% 영역(펜스·배경 최소화)의 HSV 중 색상(H)·채도(S) 2D 히스토그램. 밝기(V)를 빼서 그늘·조명 변화에 둔감하게 하고, tracklet 전체 평균을 씁니다. 한우는 색이 비슷하지만 털색 농도·흰 반점 차이가 반영되며, 거리 조건과 결합하면 충분한 판별력이 생깁니다.</p>
+
+<h2>2. 코드</h2>
+<div class="file">📄 hanwoo/stitching.py</div><pre><code class="language-python">&quot;&quot;&quot;2단계: 오프라인 ID 정합 (Tracklet stitching).
+
+온라인 추적기(BoT-SORT)는 펜스·기둥 가림, 소끼리 겹침 때문에 같은 소에게
+여러 개의 ID 를 부여하기 쉽다. 축사는 &#x27;닫힌 공간 + 고정 카메라&#x27; 이므로
+영상 전체를 본 뒤(offline) 끊어진 tracklet 들을 다시 이어붙이면 ID 일관성이 크게 좋아진다.
+
+  1) 짧은 tracklet(노이즈) 제거
+  2) 원근 모델  h(y) = a*y + b  (화면 위쪽일수록 소가 작게 보임)
+  3) tracklet i 의 &#x27;끝&#x27;  ↔  tracklet j 의 &#x27;시작&#x27; 비용 행렬
+        cost = (1-w)·거리비용(원근 정규화, 시간에 비례해 허용반경 증가) + w·외형거리(Bhattacharyya)
+  4) Hungarian 알고리즘으로 1:1 최적 연결 → 비용이 임계값 이하인 것만 병합 (수렴할 때까지 반복)
+  5) ID 재부여(1..N) + 짧은 공백 선형 보간
+&quot;&quot;&quot;
+from __future__ import annotations
+
+import cv2
+import numpy as np
+import pandas as pd
+from scipy.optimize import linear_sum_assignment
+
+from .config import PipelineConfig
+
+
+# --------------------------------------------------------------------------- 원근 모델
+def fit_perspective(df: pd.DataFrame):
+    &quot;&quot;&quot;bbox 높이 vs 화면 y 좌표의 선형 관계를 robust 하게 적합.
+
+    가림 때문에 bbox 가 잘린 경우가 많으므로 y 구간별 상위 75% 분위 높이를 사용한다.
+    반환: (a, b)  →  h(y) = a*y + b   [px]
+    &quot;&quot;&quot;
+    cy = ((df.y1 + df.y2) / 2).to_numpy()
+    h = (df.y2 - df.y1).to_numpy()
+    if len(cy) &lt; 20:
+        return 0.0, float(np.median(h)) if len(h) else 100.0
+    bins = np.quantile(cy, np.linspace(0, 1, 11))
+    xs, ys = [], []
+    for lo, hi in zip(bins[:-1], bins[1:]):
+        m = (cy &gt;= lo) &amp; (cy &lt;= hi)
+        if m.sum() &gt;= 5:
+            xs.append(np.median(cy[m]))
+            ys.append(np.quantile(h[m], 0.75))
+    a, b = np.polyfit(xs, ys, 1)
+    if a &lt;= 0:  # 비정상 → 상수 모델
+        a, b = 0.0, float(np.median(ys))
+    return float(a), float(b)
+
+
+def body_px(y, persp):
+    a, b = persp
+    return np.maximum(a * np.asarray(y) + b, 20.0)
+
+
+# --------------------------------------------------------------------------- tracklet 요약
+def _summaries(df: pd.DataFrame, feats: dict):
+    out = {}
+    for tid, g in df.groupby(&quot;tid&quot;):
+        g = g.sort_values(&quot;frame&quot;)
+        cx = ((g.x1 + g.x2) / 2).to_numpy()
+        cy = ((g.y1 + g.y2) / 2).to_numpy()
+        k = min(5, len(g))
+        hists = [feats[(f, tid)] for f in g.frame.to_numpy() if (f, tid) in feats]
+        app = np.mean(hists, axis=0).astype(np.float32) if hists else None
+        out[tid] = dict(
+            start=int(g.frame.iloc[0]), end=int(g.frame.iloc[-1]),
+            p_start=np.array([np.median(cx[:k]), np.median(cy[:k])]),
+            p_end=np.array([np.median(cx[-k:]), np.median(cy[-k:])]),
+            app=app, n=len(g),
+        )
+    return out
+
+
+def _app_dist(a, b):
+    if a is None or b is None:
+        return 0.5
+    return float(cv2.compareHist(a, b, cv2.HISTCMP_BHATTACHARYYA))
+
+
+def stitch_stages(cfg: PipelineConfig):
+    &quot;&quot;&quot;(이름, 최대공백s, 기본반경BL, 속도BL/s, 외형가중치, 최대비용) — 1차: 짧은 끊김, 2차: 장시간 재등장&quot;&quot;&quot;
+    return [
+        (&quot;short&quot;, cfg.stitch_max_gap_s, cfg.stitch_max_dist_bl, cfg.stitch_speed_bl_s,
+         cfg.stitch_app_weight, cfg.stitch_max_cost),
+        (&quot;long&quot;, cfg.stitch2_max_gap_s, cfg.stitch2_max_dist_bl, cfg.stitch2_speed_bl_s,
+         cfg.stitch2_app_weight, cfg.stitch2_max_cost),
+    ]
+
+
+def stitch_tracklets(df: pd.DataFrame, feats: dict, fps: float, cfg: PipelineConfig, persp, stages=(&quot;short&quot;, &quot;long&quot;)):
+    &quot;&quot;&quot;2단계(짧은 끊김 → 장시간 재등장) tracklet 병합. 반환: (df, feats, 병합 로그)
+
+    ReID 기반 고정 개체군 배정(identity.py)을 쓸 때는 1차(&quot;short&quot;)만 수행하고 장시간 재등장은 배정 단계가 담당한다.
+    &quot;&quot;&quot;
+    log = []
+    for stage in stitch_stages(cfg):
+        if stage[0] not in stages:
+            continue
+        df, feats, lg = _stitch_stage(df, feats, fps, persp, *stage)
+        log += lg
+    return df, feats, log
+
+
+def _stitch_stage(df, feats, fps, persp, stage, max_gap_s, dist_bl, speed_bl_s, app_w, max_cost):
+    df = df.copy()
+    max_gap = int(max_gap_s * fps)
+    log = []
+    for _it in range(10):  # 연결이 더 이상 없을 때까지 반복
+        S = _summaries(df, feats)
+        tids = sorted(S)
+        n = len(tids)
+        if n &lt; 2:
+            break
+        C = np.full((n, n), 1e3)
+        for i, ti in enumerate(tids):
+            si = S[ti]
+            for j, tj in enumerate(tids):
+                if i == j:
+                    continue
+                sj = S[tj]
+                gap = sj[&quot;start&quot;] - si[&quot;end&quot;]
+                if gap &lt;= 0 or gap &gt; max_gap:
+                    continue
+                ymid = (si[&quot;p_end&quot;][1] + sj[&quot;p_start&quot;][1]) / 2
+                d_bl = np.linalg.norm(si[&quot;p_end&quot;] - sj[&quot;p_start&quot;]) / body_px(ymid, persp)
+                allowed = dist_bl + speed_bl_s * gap / fps
+                if d_bl &gt; allowed:
+                    continue
+                c_dist = d_bl / allowed
+                c_app = _app_dist(si[&quot;app&quot;], sj[&quot;app&quot;])
+                c_gap = 0.15 * gap / max_gap
+                C[i, j] = (1 - app_w) * c_dist + app_w * c_app + c_gap
+        rows, cols = linear_sum_assignment(C)
+        links = [(tids[r], tids[c], C[r, c]) for r, c in zip(rows, cols) if C[r, c] &lt; max_cost]
+        if not links:
+            break
+        # 체인(i→j→k)을 한 번에 처리하기 위해 union-find 형태로 루트 ID 로 치환
+        parent = {}
+        for a, b, c in links:
+            parent[b] = a
+            log.append(dict(stage=stage, src=int(b), dst=int(a), cost=round(float(c), 3)))
+
+        def root(t):
+            while t in parent:
+                t = parent[t]
+            return t
+
+        new_tid = df.tid.map(lambda t: root(t))
+        # feats 키도 갱신
+        feats = {(f, root(t)): v for (f, t), v in feats.items()}
+        df[&quot;tid&quot;] = new_tid
+        # 동일 프레임 중복(이론상 없음) 방지
+        df = df.sort_values(&quot;conf&quot;, ascending=False).drop_duplicates([&quot;frame&quot;, &quot;tid&quot;]).sort_values([&quot;frame&quot;, &quot;tid&quot;])
+    return df.reset_index(drop=True), feats, log
+
+
+def relabel_and_interpolate(df: pd.DataFrame, fps: float, cfg: PipelineConfig):
+    &quot;&quot;&quot;ID 를 등장 순서대로 1..N 으로 재부여하고, 짧은 공백은 선형 보간.&quot;&quot;&quot;
+    first = df.groupby(&quot;tid&quot;).agg(f0=(&quot;frame&quot;, &quot;min&quot;), x=(&quot;x1&quot;, &quot;first&quot;)).sort_values([&quot;f0&quot;, &quot;x&quot;])
+    mapping = {old: i + 1 for i, old in enumerate(first.index)}
+    df = df.copy()
+    df[&quot;tid&quot;] = df.tid.map(mapping)
+    df[&quot;interp&quot;] = 0
+    max_gap = int(cfg.interp_max_gap_s * fps)
+    parts = []
+    for tid, g in df.groupby(&quot;tid&quot;):
+        g = g.set_index(&quot;frame&quot;).sort_index()
+        full = np.arange(g.index.min(), g.index.max() + 1)
+        missing = np.setdiff1d(full, g.index)
+        if len(missing):
+            gg = g.reindex(full)
+            # 공백 길이 계산 → max_gap 이하만 보간
+            isna = gg.x1.isna().to_numpy()
+            run_id = np.cumsum(~isna)
+            run_len = pd.Series(isna).groupby(run_id).transform(&quot;sum&quot;).to_numpy()
+            fill = isna &amp; (run_len &lt;= max_gap)
+            for c in [&quot;x1&quot;, &quot;y1&quot;, &quot;x2&quot;, &quot;y2&quot;]:
+                gg[c] = gg[c].interpolate(limit_area=&quot;inside&quot;)
+            gg.loc[isna, &quot;interp&quot;] = 1
+            gg.loc[isna, &quot;conf&quot;] = 0.0
+            gg = gg[~isna | fill]
+            g = gg
+        g[&quot;tid&quot;] = tid
+        parts.append(g.reset_index().rename(columns={&quot;index&quot;: &quot;frame&quot;}))
+    out = pd.concat(parts, ignore_index=True).sort_values([&quot;frame&quot;, &quot;tid&quot;]).reset_index(drop=True)
+    out[&quot;frame&quot;] = out.frame.astype(int)
+    out[&quot;interp&quot;] = out.interp.astype(int)
+    return out, mapping
+
+
+def clean_short(df: pd.DataFrame, cfg: PipelineConfig):
+    cnt = df.groupby(&quot;tid&quot;).frame.transform(&quot;count&quot;)
+    return df[cnt &gt;= cfg.min_track_frames].copy()</code></pre>
+
+<h2>3. 파라미터 (config.py)</h2>
+<div class="file">📄 hanwoo/config.py (L26–38)</div><pre><code class="language-python">    # ---- 오프라인 ID 정합 (Tracklet stitching) ----
+    stitch_max_gap_s: float = 20.0      # 끊긴 구간 최대 허용 시간
+    stitch_max_dist_bl: float = 2.5     # 끊긴 위치 사이 최대 거리 (몸길이 단위, 시간에 따라 증가)
+    stitch_speed_bl_s: float = 0.6      # 끊긴 동안 이동 가능한 속도 상한(몸길이/초)
+    stitch_app_weight: float = 0.5      # 외형 유사도 가중치
+    stitch_max_cost: float = 0.85
+    # 2차 정합: 장시간(최대 5분) 사라졌다 &#x27;같은 자리 근처&#x27;에서 다시 나타난 소 (누워 있음·기둥 뒤·군집)
+    stitch2_max_gap_s: float = 300.0
+    stitch2_max_dist_bl: float = 3.0    # 시간과 무관하게 고정 반경
+    stitch2_speed_bl_s: float = 0.0
+    stitch2_app_weight: float = 0.6     # 외형 비중을 높임
+    stitch2_max_cost: float = 0.55      # 더 엄격한 임계값
+    interp_max_gap_s: float = 0.5       # 보간(표시용) 최대 구간 — 순간적인 검출 누락만 메움. 더 긴 공백은</code></pre>
+<div class="tip"><b>빠른 재튜닝</b>: 검출·추적 결과는 <code>outputs/&lt;영상&gt;/cache_track.npz</code> 에 저장됩니다. <code>python run_activity.py E:/Video/cow --reuse</code> 로 YOLO 를 다시 돌리지 않고 정합·활동량만 몇 초 만에 재계산할 수 있습니다.</div>
+<div class="tip"><b>튜닝 팁</b>: 결과에서 서로 다른 소가 하나로 합쳐지면 <code>stitch_max_cost</code> 를 낮추거나 <code>stitch_app_weight</code> 를 높이고, 한 소가 여전히 여러 ID 로 쪼개지면 <code>stitch_max_gap_s</code>, <code>stitch_max_dist_bl</code> 을 늘리세요.</div>
+
+<div class="pager"><a href='06_tracking.html'>← 다중 객체 추적 (BoT-SORT)</a><a class='nx' href='07b_reid.html'>ReID 학습과 고정 개체군 ID 유지 →</a></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+</body></html>

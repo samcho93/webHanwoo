@@ -1,0 +1,119 @@
+{
+  "result": {
+    "name": "cow09",
+    "duration_s": 59.5,
+    "n_ids": 15,
+    "raw_ids": 27,
+    "total_distance": 35.79,
+    "mean_activity": 12.413333333333334,
+    "proc_fps": 43.08880016361103,
+    "track_time_s": 33.1,
+    "n_frames": 1428,
+    "render_time_s": 29.2,
+    "perspective": {
+      "a": 0.36981077186263883,
+      "b": 10.54211944138591
+    },
+    "n_links": 10,
+    "method": "reid+herd",
+    "herd_size": 15,
+    "unassigned_det_ratio": 0.0,
+    "n_splits": 2
+  },
+  "info": {
+    "model": "hanwoo_yolo11s.pt",
+    "cow_height_m": 1.3,
+    "perspective": {
+      "a": 0.36981077186263883,
+      "b": 10.54211944138591
+    },
+    "stitch_links": [
+      {
+        "stage": "short",
+        "src": 21,
+        "dst": 5,
+        "cost": 0.458
+      },
+      {
+        "stage": "short",
+        "src": 22,
+        "dst": 7,
+        "cost": 0.291
+      },
+      {
+        "stage": "short",
+        "src": 25,
+        "dst": 8,
+        "cost": 0.335
+      },
+      {
+        "stage": "short",
+        "src": 27,
+        "dst": 10,
+        "cost": 0.41
+      },
+      {
+        "stage": "short",
+        "src": 16,
+        "dst": 12,
+        "cost": 0.492
+      },
+      {
+        "stage": "short",
+        "src": 18,
+        "dst": 14,
+        "cost": 0.335
+      },
+      {
+        "stage": "short",
+        "src": 17,
+        "dst": 16,
+        "cost": 0.097
+      },
+      {
+        "stage": "short",
+        "src": 20,
+        "dst": 17,
+        "cost": 0.393
+      },
+      {
+        "stage": "short",
+        "src": 23,
+        "dst": 20,
+        "cost": 0.339
+      },
+      {
+        "stage": "short",
+        "src": 24,
+        "dst": 21,
+        "cost": 0.306
+      }
+    ],
+    "raw_ids": 27,
+    "identity": {
+      "herd_size": 15,
+      "slots": 15,
+      "tracklets": 17,
+      "unassigned_tracklets": 0,
+      "unassigned_det_ratio": 0.0,
+      "icm_moves": [
+        0
+      ]
+    },
+    "swap_splits": [
+      {
+        "tid": 12,
+        "new": 27,
+        "frame": 708,
+        "sim": 0.505
+      },
+      {
+        "tid": 7,
+        "new": 28,
+        "frame": 68,
+        "sim": 0.469
+      }
+    ],
+    "reid": "hanwoo_reid.pt"
+  }
+}

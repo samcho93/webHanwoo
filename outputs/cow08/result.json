@@ -1,0 +1,94 @@
+{
+  "result": {
+    "name": "cow08",
+    "duration_s": 59.5,
+    "n_ids": 13,
+    "raw_ids": 25,
+    "total_distance": 35.0,
+    "mean_activity": 15.476923076923079,
+    "proc_fps": 43.71652768680912,
+    "track_time_s": 32.7,
+    "n_frames": 1428,
+    "render_time_s": 0.0,
+    "perspective": {
+      "a": 0.22042049703495203,
+      "b": 31.12397724999416
+    },
+    "n_links": 8,
+    "method": "reid+herd",
+    "herd_size": 13,
+    "unassigned_det_ratio": 0.0355,
+    "n_splits": 0
+  },
+  "info": {
+    "model": "hanwoo_yolo11s.pt",
+    "cow_height_m": 1.3,
+    "perspective": {
+      "a": 0.22042049703495203,
+      "b": 31.12397724999416
+    },
+    "stitch_links": [
+      {
+        "stage": "short",
+        "src": 20,
+        "dst": 1,
+        "cost": 0.094
+      },
+      {
+        "stage": "short",
+        "src": 24,
+        "dst": 2,
+        "cost": 0.287
+      },
+      {
+        "stage": "short",
+        "src": 11,
+        "dst": 10,
+        "cost": 0.389
+      },
+      {
+        "stage": "short",
+        "src": 16,
+        "dst": 12,
+        "cost": 0.131
+      },
+      {
+        "stage": "short",
+        "src": 22,
+        "dst": 15,
+        "cost": 0.335
+      },
+      {
+        "stage": "short",
+        "src": 18,
+        "dst": 16,
+        "cost": 0.637
+      },
+      {
+        "stage": "short",
+        "src": 19,
+        "dst": 17,
+        "cost": 0.808
+      },
+      {
+        "stage": "short",
+        "src": 26,
+        "dst": 22,
+        "cost": 0.295
+      }
+    ],
+    "raw_ids": 25,
+    "identity": {
+      "herd_size": 13,
+      "slots": 13,
+      "tracklets": 14,
+      "unassigned_tracklets": 1,
+      "unassigned_det_ratio": 0.0355,
+      "icm_moves": [
+        0
+      ]
+    },
+    "swap_splits": [],
+    "reid": "hanwoo_reid.pt"
+  }
+}

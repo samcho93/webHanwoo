@@ -1,0 +1,228 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>결과 영상과 대시보드 · 한우 활동량 AI 강좌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="assets/style.css"></head><body>
+<button class="menu" onclick="document.body.classList.toggle('open')" aria-label="메뉴">☰</button>
+<nav class="side"><a class="brand" href="index.html">🐂 한우 활동량 AI</a>
+<div class="sub">YOLO · 추적 · 활동량 · 대시보드</div><ol><li class=''><a href='index.html'><span>00</span>강좌 소개와 전체 구조</a></li><li class=''><a href='01_env.html'><span>01</span>개발 환경 구축</a></li><li class=''><a href='02_data.html'><span>02</span>데이터(축사 영상) 이해</a></li><li class=''><a href='03_detect.html'><span>03</span>객체 검출: 사전학습 YOLO 시험</a></li><li class=''><a href='04_dataset.html'><span>04</span>학습 데이터 자동 구축 (Pseudo-labeling)</a></li><li class=''><a href='05_train.html'><span>05</span>YOLO 미세조정 학습과 평가</a></li><li class=''><a href='06_tracking.html'><span>06</span>다중 객체 추적 (BoT-SORT)</a></li><li class=''><a href='07_stitching.html'><span>07</span>ID 일관성: 오프라인 Tracklet 정합</a></li><li class=''><a href='07b_reid.html'><span>08</span>ReID 학습과 고정 개체군 ID 유지</a></li><li class=''><a href='08_activity.html'><span>09</span>활동량 측정 알고리즘</a></li><li class='on'><a href='09_visualize.html'><span>10</span>결과 영상과 대시보드</a></li><li class=''><a href='10_results.html'><span>11</span>전체 영상 실행과 결과 분석</a></li><li class=''><a href='11_apply.html'><span>12</span>새 영상 적용과 확장</a></li></ol>
+<div class="navfoot"><a href="../outputs/index.html">▶ 결과 대시보드</a></div></nav>
+<main class="content"><div class="crumb">Lesson 10 / 12</div><h1>결과 영상과 대시보드</h1>
+<p class="lead">숫자만으로는 현장에서 쓰기 어렵습니다. 두 가지 결과물을 만듭니다: ① 개체 ID·궤적·실시간 패널이 그려진 <b>결과 영상</b>, ② 개체별 지표를 한눈에 보는 <b>HTML 대시보드</b>.</p>
+
+<h2>1. 결과 영상</h2>
+<figure><img src="assets/img/snap_tracked.jpg"><figcaption>왼쪽: 원본 + ID 박스·최근 3초 궤적·상태 점, 오른쪽: 실시간 미니 대시보드</figcaption></figure>
+<ul>
+<li>ID 별 고유 색: 황금비(0.618…)로 색상환을 돌려 이웃 ID 끼리 색이 잘 구분되게</li>
+<li>보간 구간(0.5초 이하의 순간 누락)만 <b>얇은 박스</b>로 표시, 궤적은 실제 검출 위치로만 그림 → 소가 없는 곳에 경로가 생기지 않음</li>
+<li>박스 오른쪽 위 점: 회색=휴식, 주황=국소활동, 초록=보행</li>
+<li>FFmpeg 파이프로 프레임을 직접 넘겨 <b>H.264 / yuv420p / faststart</b> 인코딩 → 브라우저에서 바로 재생, 스트리밍 시작이 빠름</li>
+</ul>
+<div class="file">📄 hanwoo/render.py (L1–40)</div><pre><code class="language-python">&quot;&quot;&quot;4단계: 결과 동영상 렌더링 (ID 박스 + 이동궤적 + 실시간 미니 대시보드 패널).
+
+브라우저 재생 호환을 위해 ffmpeg 파이프로 H.264(yuv420p, faststart) 인코딩.
+&quot;&quot;&quot;
+from __future__ import annotations
+
+import colorsys
+import subprocess
+from collections import defaultdict, deque
+
+import cv2
+import numpy as np
+import pandas as pd
+
+from .config import STATE_NAMES, PipelineConfig
+
+STATE_COLORS = {0: (160, 160, 160), 1: (0, 200, 255), 2: (60, 220, 60)}  # BGR
+
+
+def id_color(tid: int):
+    h = (tid * 0.61803398875) % 1.0
+    r, g, b = colorsys.hsv_to_rgb(h, 0.85, 1.0)
+    return int(b * 255), int(g * 255), int(r * 255)
+
+
+def _label(img, text, org, color, scale=0.5, thick=1, bg=(0, 0, 0)):
+    (tw, th), bl = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)
+    x, y = org
+    cv2.rectangle(img, (x, y - th - 4), (x + tw + 4, y + bl - 1), bg, -1)
+    cv2.putText(img, text, (x + 2, y - 2), cv2.FONT_HERSHEY_SIMPLEX, scale, color, thick, cv2.LINE_AA)
+
+
+def render_video(video_path, act: pd.DataFrame, meta: dict, out_path, cfg: PipelineConfig, title=&quot;&quot;):
+    fps, W, H = meta[&quot;fps&quot;], meta[&quot;width&quot;], meta[&quot;height&quot;]
+    PW = cfg.panel_width
+    OW, OH = W + PW, max(H, 480)
+    cmd = [&quot;ffmpeg&quot;, &quot;-v&quot;, &quot;error&quot;, &quot;-y&quot;, &quot;-f&quot;, &quot;rawvideo&quot;, &quot;-pix_fmt&quot;, &quot;bgr24&quot;, &quot;-s&quot;, f&quot;{OW}x{OH}&quot;,
+           &quot;-r&quot;, str(fps), &quot;-i&quot;, &quot;-&quot;, &quot;-c:v&quot;, &quot;libx264&quot;, &quot;-preset&quot;, &quot;veryfast&quot;, &quot;-crf&quot;, &quot;23&quot;,
+           &quot;-pix_fmt&quot;, &quot;yuv420p&quot;, &quot;-movflags&quot;, &quot;+faststart&quot;, str(out_path)]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)</code></pre>
+
+<h2>2. 대시보드</h2>
+<p>영상마다 <code>outputs/&lt;영상&gt;/dashboard.html</code>, 전체 요약 <code>outputs/index.html</code> 이 생성됩니다. 서버 없이 더블클릭으로 열리는 단일 HTML 이고, 그래프는 Plotly.js 를 씁니다.</p>
+<table><tr><th>구성</th><th>보여주는 것</th></tr>
+<tr><td>KPI 카드</td><td>식별 개체 수, 영상 길이, 무리 총 이동거리, 평균 활동지수, 최고 활동 개체</td></tr>
+<tr><td>결과 영상</td><td>ID 부여 영상 재생</td></tr>
+<tr><td>개체별 이동거리 / 상태 비율</td><td>누가 많이 움직였나, 누가 주로 쉬었나</td></tr>
+<tr><td>시간대별 활동지수</td><td>5초 평균 활동지수의 개체별 추이</td></tr>
+<tr><td>이동 궤적</td><td>축사 배경 위에 개체별 궤적 — 선호 위치(사료조, 급수조) 파악</td></tr>
+<tr><td>요약표</td><td>summary.csv 내용</td></tr></table>
+<p><a href="../outputs/index.html">▶ 실제 대시보드 열기</a></p>
+<div class="file">📄 hanwoo/dashboard.py (L1–20)</div><pre><code class="language-python">&quot;&quot;&quot;5단계: 활동량 대시보드(HTML) 생성 - Plotly.js 사용, 영상별 1개 + 전체 요약 1개.&quot;&quot;&quot;
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pandas as pd
+
+from .render import id_color
+
+PLOTLY = &quot;https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js&quot;
+
+CSS = &quot;&quot;&quot;
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1f2328;--mut:#5c6370;--line:#e3e0d8;--acc:#b5562b}
+@media (prefers-color-scheme: dark){:root{--bg:#16171a;--card:#1f2125;--ink:#e8e6e1;--mut:#9aa0a8;--line:#30333a;--acc:#e08a5a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:&quot;Pretendard&quot;,&quot;Noto Sans KR&quot;,&quot;Malgun Gothic&quot;,system-ui,sans-serif}
+header{padding:20px 24px;border-bottom:1px solid var(--line)}h1{margin:0;font-size:22px}header p{margin:4px 0 0;color:var(--mut);font-size:14px}
+main{max-width:1280px;margin:0 auto;padding:20px 16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}.kpi b{display:block;font-size:26px;margin-top:4px}.kpi span{color:var(--mut);font-size:13px}</code></pre>
+
+<h2>3. 파이프라인 연결</h2>
+<div class="file">📄 hanwoo/pipeline.py</div><pre><code class="language-python">&quot;&quot;&quot;전체 파이프라인: 영상 1개 → outputs/&lt;name&gt;/ (영상, CSV, JSON, 대시보드).&quot;&quot;&quot;
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+import cv2
+import numpy as np
+import pandas as pd
+
+from .activity import compute_activity, summarize, timeseries
+from .config import OUTPUT_DIR, PipelineConfig
+from .dashboard import write_video_dashboard
+from .detect_track import run_detect_track
+from .identity import assign_identities, attach_embeddings, estimate_herd_size, split_swaps
+from .render import render_video
+from .stitching import clean_short, fit_perspective, relabel_and_interpolate, stitch_tracklets
+
+
+def process_video(video_path, cfg: PipelineConfig | None = None, out_root: Path = OUTPUT_DIR,
+                  reuse: bool = False) -&gt; dict:
+    cfg = cfg or PipelineConfig()
+    video_path = Path(video_path)
+    name = video_path.stem
+    out_dir = Path(out_root) / name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    t0 = time.time()
+
+    print(f&quot;=== {name} ===&quot;)
+    cache = out_dir / &quot;cache_track.npz&quot;
+    if reuse and cache.exists():
+        # 검출·추적 결과 재사용 → 정합·활동량 파라미터만 빠르게 다시 튜닝할 때
+        z = np.load(cache, allow_pickle=True)
+        raw = pd.read_csv(out_dir / &quot;tracks_raw.csv&quot;)
+        feats = {(int(f), int(t)): v for (f, t), v in zip(z[&quot;keys&quot;], z[&quot;vals&quot;].astype(np.float32))}
+        meta = z[&quot;meta&quot;].item()
+        t_track = float(z[&quot;t_track&quot;])
+        print(&quot;  reuse cached detection/tracking&quot;)
+    else:
+        raw, feats, meta = run_detect_track(video_path, cfg)
+        t_track = time.time() - t0
+        raw.to_csv(out_dir / &quot;tracks_raw.csv&quot;, index=False)
+        keys = np.array(list(feats.keys()), dtype=np.int32).reshape(-1, 2)
+        vals = np.array(list(feats.values()), dtype=np.float16).reshape(len(keys), -1)
+        np.savez_compressed(cache, keys=keys, vals=vals, meta=np.array(meta, dtype=object), t_track=t_track)
+    fps = meta[&quot;fps&quot;]
+    raw_ids = raw.tid.nunique()
+
+    raw = raw.assign(rtid=raw.tid)                 # 추적기 원본 id (ReID 임베딩 연결용)
+    clean = clean_short(raw, cfg)
+    persp = fit_perspective(clean)
+    use_id = cfg.use_identity and Path(cfg.reid_weights).exists()
+    id_stats, splits = None, []
+    if use_id:
+        # (A) 고정 개체군: 짧은 끊김만 정합 → ReID 스왑 분리 → N 개 슬롯 배정
+        stitched, feats, links = stitch_tracklets(clean, feats, fps, cfg, persp, stages=(&quot;short&quot;,))
+        emb_df, emb = load_or_extract_embeddings(video_path, raw, out_dir, cfg, reuse)
+        embs = attach_embeddings(stitched, emb_df, emb)
+        stitched, embs, splits = split_swaps(stitched, embs, fps, cfg)
+        n_herd = cfg.herd_size or estimate_herd_size(raw, meta[&quot;n_frames&quot;])
+        stitched, id_stats, _ = assign_identities(stitched, embs, fps, persp, n_herd, cfg)
+        print(f&quot;  identity: herd N={n_herd}, swaps split {len(splits)}, {id_stats}&quot;)
+    else:
+        # (B) 기존: 2단계 tracklet 정합
+        stitched, feats, links = stitch_tracklets(clean, feats, fps, cfg, persp)
+    final, mapping = relabel_and_interpolate(stitched.drop(columns=[&quot;rtid&quot;]), fps, cfg)
+    act = compute_activity(final, fps, persp, cfg)
+    summ = summarize(act, fps)
+    ts = timeseries(act)
+    print(f&quot;  raw IDs {raw_ids} → after cleaning {clean.tid.nunique()} → final {summ.shape[0]}&quot;)
+
+    act.round(4).to_csv(out_dir / &quot;tracks_activity.csv&quot;, index=False)
+    summ.to_csv(out_dir / &quot;summary.csv&quot;, index=False)
+
+    # 배경 이미지 (대시보드 궤적용)
+    cap = cv2.VideoCapture(str(video_path))
+    cap.set(cv2.CAP_PROP_POS_FRAMES, min(48, meta[&quot;n_frames&quot;] - 1))
+    ok, bg = cap.read()
+    cap.release()
+    if ok:
+        cv2.imwrite(str(out_dir / f&quot;{name}_bg.jpg&quot;), bg)
+
+    t1 = time.time()
+    if cfg.write_video:
+        render_video(video_path, act, meta, out_dir / f&quot;{name}_tracked.mp4&quot;, cfg, title=name)
+    t_render = time.time() - t1
+
+    info = dict(model=Path(cfg.weights).name if Path(cfg.weights).exists() else cfg.fallback_weights,
+                cow_height_m=cfg.cow_height_m, perspective=dict(a=persp[0], b=persp[1]),
+                stitch_links=links, raw_ids=int(raw_ids),
+                identity=id_stats, swap_splits=splits,
+                reid=Path(cfg.reid_weights).name if use_id else None)
+    write_video_dashboard(out_dir, name, summ, ts, act, meta, info)
+
+    result = dict(
+        name=name, duration_s=meta[&quot;n_frames&quot;] / fps, n_ids=int(summ.shape[0]), raw_ids=int(raw_ids),
+        total_distance=float(summ.distance_m.sum()), mean_activity=float(summ.activity_index.mean()),
+        proc_fps=meta[&quot;n_frames&quot;] / max(t_track, 1e-6), track_time_s=round(t_track, 1), n_frames=meta[&quot;n_frames&quot;],
+        render_time_s=round(t_render, 1), perspective=dict(a=persp[0], b=persp[1]), n_links=len(links),
+        method=&quot;reid+herd&quot; if use_id else &quot;stitch2&quot;, herd_size=id_stats[&quot;herd_size&quot;] if id_stats else None,
+        unassigned_det_ratio=id_stats[&quot;unassigned_det_ratio&quot;] if id_stats else None, n_splits=len(splits),
+    )
+    (out_dir / &quot;result.json&quot;).write_text(json.dumps(dict(result=result, info=info), ensure_ascii=False, indent=2),
+                                         encoding=&quot;utf-8&quot;)
+    print(f&quot;  done: track {t_track:.0f}s, render {t_render:.0f}s&quot;)
+    return result
+
+
+def load_or_extract_embeddings(video_path, raw, out_dir, cfg: PipelineConfig, reuse: bool):
+    &quot;&quot;&quot;ReID 임베딩 (reid_every 프레임마다) — outputs/&lt;name&gt;/cache_reid.npz 에 캐시.&quot;&quot;&quot;
+    from .reid import extract_embeddings, load_reid
+
+    cache = out_dir / &quot;cache_reid.npz&quot;
+    if reuse and cache.exists():
+        z = np.load(cache, allow_pickle=True)
+        if str(z[&quot;weights&quot;]) == Path(cfg.reid_weights).name and float(z[&quot;mtime&quot;]) == Path(cfg.reid_weights).stat().st_mtime:
+            print(&quot;  reuse cached ReID embeddings&quot;)
+            return pd.DataFrame(z[&quot;meta&quot;], columns=[&quot;frame&quot;, &quot;tid&quot;, &quot;conf&quot;, &quot;occ&quot;]).astype(
+                dict(frame=int, tid=int)), z[&quot;emb&quot;].astype(np.float32)
+    t0 = time.time()
+    model = load_reid(cfg.reid_weights)
+    emb_df, emb = extract_embeddings(video_path, raw, model, every=cfg.reid_every)
+    np.savez_compressed(cache, meta=emb_df.to_numpy(np.float32), emb=emb.astype(np.float16),
+                        weights=Path(cfg.reid_weights).name, mtime=Path(cfg.reid_weights).stat().st_mtime)
+    print(f&quot;  ReID embeddings {len(emb_df)} crops in {time.time() - t0:.0f}s&quot;)
+    return emb_df, emb</code></pre>
+
+<div class="pager"><a href='08_activity.html'>← 활동량 측정 알고리즘</a><a class='nx' href='10_results.html'>전체 영상 실행과 결과 분석 →</a></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copy';b.textContent='복사';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/복사$/,''));b.textContent='복사됨';setTimeout(()=>b.textContent='복사',1200)};p.appendChild(b)});</script>
+</body></html>

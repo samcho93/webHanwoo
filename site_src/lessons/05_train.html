@@ -1,0 +1,37 @@
+<p class="lead">COCO 로 사전학습된 YOLO11s 가중치에서 출발해, 앞 레슨에서 만든 축사 데이터셋으로 <b>전이학습(transfer learning)</b> 합니다. 처음부터 학습하는 것보다 훨씬 적은 데이터와 시간으로 높은 성능을 얻습니다.</p>
+
+<h2>1. 학습 코드</h2>
+<!--CODE:scripts/train.py-->
+
+<h3>주요 하이퍼파라미터</h3>
+<table>
+<tr><th>파라미터</th><th>값</th><th>이유</th></tr>
+<tr><td><code>imgsz</code></td><td>960</td><td>원거리의 작은 소를 위해 기본값(640)보다 크게</td></tr>
+<tr><td><code>epochs / patience</code></td><td>60 / 20</td><td>검증 성능이 20 epoch 동안 오르지 않으면 조기 종료</td></tr>
+<tr><td><code>cos_lr</code></td><td>True</td><td>학습률을 코사인 곡선으로 서서히 감소 → 안정적 수렴</td></tr>
+<tr><td><code>mosaic / close_mosaic</code></td><td>1.0 / 10</td><td>4장을 이어붙이는 증강으로 다양한 배치 학습, 마지막 10 epoch 는 실제 이미지로 마무리</td></tr>
+<tr><td><code>flipud</code></td><td>0</td><td>고정 카메라에서 상하가 뒤집힌 소는 나올 수 없음</td></tr>
+<tr><td><code>hsv_v</code></td><td>0.4</td><td>계절·시간대에 따른 밝기 변화 대응</td></tr>
+</table>
+
+<h2>2. 실행</h2>
+<pre><code class="language-bash">python scripts/train.py --epochs 60 --imgsz 960 --batch 16</code></pre>
+<p>TITAN RTX 기준 epoch 당 약 75초. 학습 결과는 <code>runs/hanwoo/train/</code> 에 저장되고, 최고 성능 가중치가 <code>models/hanwoo_yolo11s.pt</code> 로 복사됩니다.</p>
+
+<h2>3. 결과 (검증셋: 학습에 쓰지 않은 cow02, cow09)</h2>
+<!--TRAIN_METRICS-->
+<figure><img src="assets/img/train_results.png"><figcaption>학습 곡선 — 손실(loss)은 감소, 정밀도·재현율·mAP 는 상승</figcaption></figure>
+<h3>지표 읽는 법</h3>
+<ul>
+<li><b>Precision(정밀도)</b>: 모델이 소라고 한 것 중 진짜 소의 비율 — 낮으면 오검출이 많음</li>
+<li><b>Recall(재현율)</b>: 진짜 소 중 모델이 찾은 비율 — 낮으면 놓치는 소가 많음 → 추적이 끊김</li>
+<li><b>mAP50</b>: 박스가 정답과 50% 이상 겹치면 정답으로 볼 때의 평균 정밀도</li>
+<li><b>mAP50-95</b>: 겹침 기준을 50~95% 로 엄격하게 올려가며 평균 — 박스 위치 정확도까지 반영</li>
+</ul>
+
+<h2>4. 학습 전후 비교 (같은 YOLO11s)</h2>
+<div class="two">
+<figure><img src="assets/img/det_yolo11s.jpg"><figcaption>학습 전 (COCO)</figcaption></figure>
+<figure><img src="assets/img/det_finetuned.jpg"><figcaption>학습 후 (hanwoo 단일 클래스)</figcaption></figure>
+</div>
+<div class="note"><b>주의</b>: 검증 라벨도 teacher 가 만든 자동 라벨이므로, 위 점수는 “student 가 teacher 를 얼마나 잘 따라 하는가” 입니다. 사람이 검수한 라벨로 평가하면 점수가 다소 낮게 나올 수 있습니다. 그래도 student 는 teacher 보다 <b>수십 배 빠르면서</b> 곤포 오검출이 없고, 이것이 추적 품질로 이어집니다.</div>

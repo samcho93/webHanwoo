@@ -1,0 +1,18 @@
+# 환경·대용량 (재생성 가능)
+.venv/
+__pycache__/
+*.pyc
+data/
+runs/
+*.log
+
+# 모델 가중치 → GitHub Release 첨부파일로 배포
+models/*.pt
+
+# 결과 중 대용량 중간 파일 (run_activity.py 로 재생성)
+outputs/*/cache_*.npz
+outputs/*/tracks_raw.csv
+outputs/*/tracks_activity.csv
+
+# 로컬 설정
+.claude/
