@@ -19,3 +19,5 @@ outputs/*/tracks_activity.csv
 outputs/live/
 configs/live_my.json
 paper/
+outputs/ablation/
+outputs/*.log

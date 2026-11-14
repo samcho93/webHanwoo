@@ -63,6 +63,21 @@ python live_app.py --headless --source rtsp://... --save-video  # no display (se
 python scripts/identity_sheet.py outputs/live/cow03_...          # check IDs of a real-time result
 ```
 
+## Evaluation against ground truth
+The proxy numbers (ID count, excluded detections) cannot show whether IDs are *correct*, so a few segments are
+labeled by hand and every method variant is scored with IDF1 / ID switches / HOTA.
+```bash
+python scripts/ablation.py                       # variants → outputs/ablation/<video>/<variant>.csv (uses caches)
+python scripts/ablation.py --wa 0.3 0.5 0.7 0.9  # appearance-weight sensitivity
+python scripts/gt_label.py cow03 --start 0 --end 300   # label which cow each tracklet is → gt/cow03.json, gt/cow03_gt.csv
+python scripts/gt_label.py cow09                       # whole video
+python scripts/eval_gt.py                        # → gt/eval_results.csv
+python scripts/eval_gt.py cow03 --online cow03=outputs/live/cow03_.../tracks_live.csv
+```
+Labeling is done per raw tracker tracklet (no suggestions from the proposed method are shown, to avoid bias):
+`Space` next tracklet, `Enter` assign to the selected cow, `N` new cow, `F` not a cow / outside the analysed pen,
+`S` split at the current frame (when a tracklet jumps between cows), `←/→` ±1 s.
+
 ## Course site
 ```bash
 python scripts/make_figures.py
